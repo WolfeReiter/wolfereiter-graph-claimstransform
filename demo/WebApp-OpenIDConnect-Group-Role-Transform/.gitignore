@@ -1,0 +1,4 @@
+# do not include development settings
+# so it is safe to put azuread secrets in there to run the demo
+
+appsettings.Development.json
