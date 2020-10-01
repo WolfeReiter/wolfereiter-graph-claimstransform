@@ -15,7 +15,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
-using WolfeReiter.Identity.Claims;
 
 namespace WebApp_OpenIDConnect_Group_Role_Transform
 {
@@ -40,7 +39,14 @@ namespace WebApp_OpenIDConnect_Group_Role_Transform
                 options.HandleSameSiteCookieCompatibility();
             });
 
+            //in production use DistributedSqlServerCache or Redis Cache
             services.AddDistributedMemoryCache();
+            /*
+            services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = "host:4445";
+            });
+            */
             // Sign-in users with the Microsoft identity platform
             services.AddMicrosoftIdentityWebAppAuthentication(Configuration)
                 .EnableTokenAcquisitionToCallDownstreamApi(new string[] { "User.Read", "Directory.Read.All" })
@@ -58,8 +64,7 @@ namespace WebApp_OpenIDConnect_Group_Role_Transform
             services.AddControllersWithViews().AddMicrosoftIdentityUI();
             services.AddRazorPages();
 
-            services.AddSingleton<IGraphUtilityService, GraphUtilityService>();
-            services.AddScoped<IClaimsTransformation, AzureGroupsClaimsTransform>();
+            services.AddWolfeReiterAzureGroupsClaimsTransform();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

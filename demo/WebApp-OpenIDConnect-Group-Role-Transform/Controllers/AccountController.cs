@@ -26,7 +26,6 @@ namespace WebApp_OpenIDConnect_Group_Role_Transform.Controllers
         public IActionResult SignOut(string scheme)
         {
             //TODO: clear cache
-            throw new NotImplementedException("Clear IDistirbutedCache of groups for User.");
             scheme ??= OpenIdConnectDefaults.AuthenticationScheme;
             var callbackUrl = Url.ActionLink("SignedOut");
             return SignOut(

@@ -64,7 +64,11 @@ namespace WolfeReiter.Identity.Claims
 
                 groupNames = (await GraphService.GroupsAsync(principal, accessToken)).Select(x => x.DisplayName);
                 json = JsonSerializer.Serialize(groupNames);
-                await Cache.SetStringAsync($"oid.groups:{principal.GetObjectId():N}", json);
+                //TODO: configured cache entry options
+                var options = new DistributedCacheEntryOptions()
+                        .SetAbsoluteExpiration(DateTime.Now.AddDays(1))
+                        .SetSlidingExpiration(TimeSpan.FromMinutes(30));
+                await Cache.SetStringAsync($"oid.groups:{principal.GetObjectId():N}", json, options);
             }
 
             foreach (var group in groupNames)
