@@ -11,15 +11,32 @@ Extension to Microsoft.Identity.Web package uses Microsoft Graph API to add Azur
 ```csharp
   public void ConfigureServices(IServiceCollection services)
   {
-      ...
+      services.Configure<CookiePolicyOptions>(options =>
+      {
+          // This lambda determines whether user consent for non-essential cookies is needed for a given request.
+          options.CheckConsentNeeded = context => true;
+                      options.MinimumSameSitePolicy = SameSiteMode.Unspecified;
+          // Handling SameSite cookie according to https://docs.microsoft.com/en-us/aspnet/core/security/samesite?view=aspnetcore-3.1
+          options.HandleSameSiteCookieCompatibility();
+      });
 
-      //DistributedMemoryCache implements IDistributedCache with local memory for development 
-      //but not suitable for production. Use SQL Server or Redis cache
+      //in production use DistributedSqlServerCache or Redis Cache
       services.AddDistributedMemoryCache();
-      //service must be scoped -- it runs per user/request context
-      services.AddScoped<IClaimsTransformation, AzureGroupClaimsTransform>();
+      /*
+      services.AddStackExchangeRedisCache(options =>
+      {
+          options.Configuration = "host:4445";
+      });
+      */
+      // Sign-in users with the Microsoft identity platform
+      services.AddMicrosoftIdentityWebAppAuthentication(Configuration)
+          .EnableTokenAcquisitionToCallDownstreamApi(new string[] { "User.Read", "Directory.Read.All" })
+          .AddDistributedTokenCaches();
 
-      ...
+      services.AddControllersWithViews().AddMicrosoftIdentityUI();
+      services.AddRazorPages();
+
+      services.AddWolfeReiterAzureGroupsClaimsTransform();
   }
 ```
 
