@@ -5,4 +5,12 @@
     <RootNamespace>WebApp_OpenIDConnect_Group_Role_Transform</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Identity.Web" Version="1.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\WolfeReiter.Identity.Claims\WolfeReiter.Identity.Claims.csproj" />
+  </ItemGroup>
+
 </Project>
