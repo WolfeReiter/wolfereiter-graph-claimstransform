@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -14,6 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
+using WolfeReiter.Identity.Claims;
 
 namespace WebApp_OpenIDConnect_Group_Role_Transform
 {
@@ -40,7 +42,9 @@ namespace WebApp_OpenIDConnect_Group_Role_Transform
 
             services.AddDistributedMemoryCache();
             // Sign-in users with the Microsoft identity platform
-            services.AddMicrosoftIdentityWebAppAuthentication(Configuration);
+            services.AddMicrosoftIdentityWebAppAuthentication(Configuration)
+                .EnableTokenAcquisitionToCallDownstreamApi(new string[] { "User.Read", "Directory.Read.All" })
+                .AddDistributedTokenCaches();
             
             /*
             services.AddControllersWithViews(options =>
@@ -53,6 +57,9 @@ namespace WebApp_OpenIDConnect_Group_Role_Transform
             */
             services.AddControllersWithViews().AddMicrosoftIdentityUI();
             services.AddRazorPages();
+
+            services.AddSingleton<IGraphUtilityService, GraphUtilityService>();
+            services.AddScoped<IClaimsTransformation, AzureGroupsClaimsTransform>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

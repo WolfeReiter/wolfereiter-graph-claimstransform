@@ -41,7 +41,7 @@ namespace WolfeReiter.Identity.Claims
         protected GraphServiceClient NewAuthenticatedClient(string accessToken)
         {
             //TODO: configure graphApiUrl instead of hard-code
-            return new GraphServiceClient("https://graph.microsoft.com/.default",
+            return new GraphServiceClient("https://graph.microsoft.com/v1.0",
                 new DelegateAuthenticationProvider(
                     async (requestMessage) =>
                     {
