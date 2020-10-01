@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 
 
@@ -20,15 +21,18 @@ namespace WolfeReiter.Identity.Claims
     /// </summary>
     public class AzureGroupsClaimsTransform : IClaimsTransformation
     {
+        private readonly GraphUtilityServiceOptions Options;
         private readonly IGraphUtilityService GraphService;
         private readonly ITokenAcquisition TokenAcquisition;
         private readonly IDistributedCache Cache;
         //cache for ClaimsPrincipal from the current scope.
         private ClaimsPrincipal ScopePrincipal;
-        public AzureGroupsClaimsTransform(IGraphUtilityService graphService, ITokenAcquisition tokenAcquisition, IDistributedCache cache)
+        public AzureGroupsClaimsTransform(IGraphUtilityService graphService, ITokenAcquisition tokenAcquisition,
+            IDistributedCache cache, IOptions<GraphUtilityServiceOptions> options)
         {
             GraphService     = graphService;
             TokenAcquisition = tokenAcquisition;
+            Options          = options.Value;  
             Cache            = cache;
         }
         public async Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
@@ -57,7 +61,7 @@ namespace WolfeReiter.Identity.Claims
             {
                 //call graph api
                 //TODO: graph API endpoint from configuration
-                string accessToken = await TokenAcquisition.GetAccessTokenForAppAsync("https://graph.microsoft.com/.default");
+                string accessToken = await TokenAcquisition.GetAccessTokenForAppAsync(Options.GraphEndpoint);
                 var groups = await GraphService.GroupsAsync(principal, accessToken);
                 //if ClaimsPrincipal is not from an azure user or something went horribly awry, don't crash
                 if (groups == null) return principal; 

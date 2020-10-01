@@ -64,7 +64,7 @@ namespace WebApp_OpenIDConnect_Group_Role_Transform
             services.AddControllersWithViews().AddMicrosoftIdentityUI();
             services.AddRazorPages();
 
-            services.AddWolfeReiterAzureGroupsClaimsTransform();
+            services.AddWolfeReiterAzureGroupsClaimsTransform(Configuration);
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

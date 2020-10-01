@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Options;
 using Microsoft.Graph;
 using Microsoft.Identity.Web;
 
@@ -10,6 +11,11 @@ namespace WolfeReiter.Identity.Claims
 {
     public abstract class GraphUtilityServiceBase
     {
+        private readonly GraphUtilityServiceOptions Options;
+        public GraphUtilityServiceBase(IOptions<GraphUtilityServiceOptions> options)
+        {
+            Options = options.Value;
+        }
         protected async Task<IEnumerable<T>> AllPagesAsync<T>(IBaseClient graphClient, ICollectionPage<DirectoryObject> page) 
             where T : class
         {
@@ -40,8 +46,7 @@ namespace WolfeReiter.Identity.Claims
 
         protected GraphServiceClient NewAuthenticatedClient(string accessToken)
         {
-            //TODO: configure graphApiUrl instead of hard-code
-            return new GraphServiceClient("https://graph.microsoft.com/v1.0",
+            return new GraphServiceClient(Options.GraphApiVersion,
                 new DelegateAuthenticationProvider(
                     async (requestMessage) =>
                     {
