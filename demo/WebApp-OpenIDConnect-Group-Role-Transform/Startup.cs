@@ -70,6 +70,7 @@ namespace WebApp_OpenIDConnect_Group_Role_Transform
             }
             app.UseHttpsRedirection();
             app.UseStaticFiles();
+            app.UseStatusCodePages();
 
             app.UseRouting();
             app.UseAuthentication();
