@@ -23,7 +23,7 @@ namespace WebApp_OpenIDConnect_Group_Role_Transform.Controllers
         }
 
         /// <summary>
-        /// Replacement for Microsoft.Identiy.Web.UI Account/Signout that clears groups from cache for User
+        /// Replacement for Microsoft.Identity.Web.UI Account/Signout that clears groups from cache for User
         /// </summary>
         /// <param name="scheme"></param>
         /// <returns></returns>
