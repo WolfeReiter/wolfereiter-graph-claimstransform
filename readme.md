@@ -42,4 +42,36 @@ Extension to Microsoft.Identity.Web package uses Microsoft Graph API to add Azur
 
 ### Account/Logout
 
-TODO: Call the extension method to remove the User (ClaimsPrincipal) values from the cache.
+```csharp
+    /// <summary>
+    /// Replacement for Microsoft.Identiy.Web.UI Account/Signout that clears groups from cache for User
+    /// </summary>
+    /// <param name="scheme"></param>
+    /// <returns></returns>
+    [HttpGet]
+    [Route("/Account/SignOut/")]
+    public async Task<IActionResult> SignOut(string scheme)
+    {
+        await Cache.RemoveGroupClaimsAsync(User);
+        scheme ??= OpenIdConnectDefaults.AuthenticationScheme;
+        var callbackUrl = Url.ActionLink("SignedOut");
+        return SignOut(
+                new AuthenticationProperties
+                {
+                    RedirectUri = callbackUrl,
+                },
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                scheme);
+    }
+
+    [HttpGet]
+    public IActionResult SignedOut()
+    {
+        if (User?.Identity?.IsAuthenticated ?? false)
+        {
+            return LocalRedirect("~/");
+        }
+
+        return View();
+    }
+```
