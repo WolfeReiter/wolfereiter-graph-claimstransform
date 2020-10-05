@@ -60,7 +60,6 @@ namespace WolfeReiter.Identity.Claims
             else
             {
                 //call graph api
-                //TODO: graph API endpoint from configuration
                 string accessToken = await TokenAcquisition.GetAccessTokenForAppAsync(Options.GraphEndpoint);
                 var groups = await GraphService.GroupsAsync(principal, accessToken);
                 //if ClaimsPrincipal is not from an azure user or something went horribly awry, don't crash
