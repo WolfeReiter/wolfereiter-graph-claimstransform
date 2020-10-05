@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 
@@ -15,6 +16,11 @@ namespace WebApp_OpenIDConnect_Group_Role_Transform.Controllers
     [AllowAnonymous]
     public class AccountController : Controller
     {
+        private readonly IDistributedCache Cache;
+        public AccountController(IDistributedCache cache)
+        {
+            Cache = cache;
+        }
 
         /// <summary>
         /// Replacement for Microsoft.Identiy.Web.UI Account/Signout that clears groups from cache for User
@@ -23,9 +29,9 @@ namespace WebApp_OpenIDConnect_Group_Role_Transform.Controllers
         /// <returns></returns>
         [HttpGet]
         [Route("/Account/SignOut/")]
-        public IActionResult SignOut(string scheme)
+        public async Task<IActionResult> SignOut(string scheme)
         {
-            //TODO: clear cache
+            await Cache.RemoveGroupClaimsAsync(User);
             scheme ??= OpenIdConnectDefaults.AuthenticationScheme;
             var callbackUrl = Url.ActionLink("SignedOut");
             return SignOut(

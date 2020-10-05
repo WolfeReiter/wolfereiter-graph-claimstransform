@@ -40,35 +40,22 @@ namespace WolfeReiter.Identity.Claims
             //transform can run more than once.
             //the service is scoped, so setting and testing the Principal property allows short-circuiting
             if (ScopePrincipal != null) return ScopePrincipal;
-
             ScopePrincipal = principal;
-            var claimsIdentity = principal.Identities.First();
 
+            //if there is no oid, then principal didn't come from AzureAD / OpenIdConnect
+            if (principal.GetObjectId() == null) return principal;
+
+            var claimsIdentity = principal.Identities.First();
+            //mark principal with claim for this transform
             claimsIdentity.AddClaim(new Claim("transform", this.GetType().FullName));
 
-            var groupNames = Enumerable.Empty<String>();
-
-            //TODO: refactor cache operations into extension methods.
-            //TODO: add extension method for clearing principal groupsfrom cache
-
-            //cached?
-            string json = await Cache.GetStringAsync($"oid.groups:{principal.GetObjectId():N}");
-            if (!string.IsNullOrEmpty(json))
+            var claimsCacheResult = await Cache.GetGroupClaimsAsync(principal);
+            var groupNames        = claimsCacheResult.GroupNames;
+            if (!claimsCacheResult.Success)
             {
-                groupNames = JsonSerializer.Deserialize<IEnumerable<string>>(json);
-            }
-            else
-            {
-                //call graph api
-                string accessToken = await TokenAcquisition.GetAccessTokenForAppAsync(Options.GraphEndpoint);
-                var groups = await GraphService.GroupsAsync(principal, accessToken);
-                //if ClaimsPrincipal is not from an azure user or something went horribly awry, don't crash
-                if (groups == null) return principal; 
-
+                var accessToken = await TokenAcquisition.GetAccessTokenForAppAsync(Options.GraphEndpoint);
                 groupNames = (await GraphService.GroupsAsync(principal, accessToken)).Select(x => x.DisplayName);
-                json = JsonSerializer.Serialize(groupNames);
-
-                await Cache.SetStringAsync($"oid.groups:{principal.GetObjectId():N}", json, Options.DistributedCacheEntryOptions);
+                await Cache.SetGroupClaimsAsync(principal, groupNames, Options.DistributedCacheEntryOptions);
             }
 
             foreach (var group in groupNames)
