@@ -15,7 +15,7 @@ Extension to Microsoft.Identity.Web package uses Microsoft Graph API to add Azur
       {
           // This lambda determines whether user consent for non-essential cookies is needed for a given request.
           options.CheckConsentNeeded = context => true;
-                      options.MinimumSameSitePolicy = SameSiteMode.Unspecified;
+          options.MinimumSameSitePolicy = SameSiteMode.Unspecified;
           // Handling SameSite cookie according to https://docs.microsoft.com/en-us/aspnet/core/security/samesite?view=aspnetcore-3.1
           options.HandleSameSiteCookieCompatibility();
       });
@@ -58,7 +58,7 @@ Extension to Microsoft.Identity.Web package uses Microsoft Graph API to add Azur
         return SignOut(
                 new AuthenticationProperties
                 {
-                    RedirectUri = callbackUrl,
+                    RedirectUri = callbackUrl
                 },
                 CookieAuthenticationDefaults.AuthenticationScheme,
                 scheme);

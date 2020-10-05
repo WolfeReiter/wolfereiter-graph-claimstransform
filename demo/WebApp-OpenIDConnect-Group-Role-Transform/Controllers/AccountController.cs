@@ -37,7 +37,7 @@ namespace WebApp_OpenIDConnect_Group_Role_Transform.Controllers
             return SignOut(
                  new AuthenticationProperties
                  {
-                     RedirectUri = callbackUrl,
+                    RedirectUri = callbackUrl
                  },
                  CookieAuthenticationDefaults.AuthenticationScheme,
                  scheme);
