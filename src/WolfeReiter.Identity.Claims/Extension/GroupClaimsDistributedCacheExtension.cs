@@ -12,7 +12,7 @@ namespace Microsoft.Extensions.Caching.Distributed
     {
         public static async Task SetGroupClaimsAsync(this IDistributedCache cache, ClaimsPrincipal principal, IEnumerable<string> groupNames, DistributedCacheEntryOptions options)
         {
-            if (principal.GetObjectId() == null) return;
+            if (principal == null || principal.GetObjectId() == null) return;
 
             var json = JsonSerializer.Serialize(groupNames);
             await cache.SetStringAsync(CacheKey(principal), json, options);
@@ -21,7 +21,7 @@ namespace Microsoft.Extensions.Caching.Distributed
         public static async Task<GroupClaimsResult> GetGroupClaimsAsync(this IDistributedCache cache, ClaimsPrincipal principal)
         {
             var result = new GroupClaimsResult() { Success = false };
-            if (principal.GetObjectId() != null)
+            if (principal != null && principal.GetObjectId() != null)
             {
                 string json = await cache.GetStringAsync(CacheKey(principal));
                 if (!string.IsNullOrEmpty(json)) 
@@ -35,7 +35,7 @@ namespace Microsoft.Extensions.Caching.Distributed
 
         public static async Task RemoveGroupClaimsAsync(this IDistributedCache cache, ClaimsPrincipal principal)
         {
-            if (principal.GetObjectId() == null) return;
+            if (principal == null || principal.GetObjectId() == null) return;
 
             await cache.RemoveAsync(CacheKey(principal));
         }
