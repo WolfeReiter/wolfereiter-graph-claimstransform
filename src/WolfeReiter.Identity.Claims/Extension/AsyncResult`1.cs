@@ -1,6 +1,4 @@
-using System;
-
-namespace System.Threading.Tasks
+namespace WolfeReiter.Threading.Tasks
 {
     public class AsyncResult<T> where T : class
     {
