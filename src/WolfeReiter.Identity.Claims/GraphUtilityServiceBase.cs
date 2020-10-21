@@ -16,7 +16,7 @@ namespace WolfeReiter.Identity.Claims
         {
             Options = options.Value;
         }
-        protected async Task<IEnumerable<T>> AllPagesAsync<T>(IBaseClient graphClient, ICollectionPage<DirectoryObject> page) 
+        protected async Task<IEnumerable<T>?> AllPagesAsync<T>(IBaseClient graphClient, ICollectionPage<DirectoryObject> page) 
             where T : class
         {
             if (page == null) return null;
@@ -29,10 +29,10 @@ namespace WolfeReiter.Identity.Claims
                 {
                     // This code executes for each item in the
                     // collection
-                    if (item is T)
+                    if (item is T t)
                     {
                         // Only add if the item is the requested type
-                        allItems.Add(item as T);
+                        allItems.Add(t);
                     }
 
                     return true;

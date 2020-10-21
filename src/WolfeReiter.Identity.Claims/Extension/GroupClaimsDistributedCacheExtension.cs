@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Identity.Web;
+using WolfeReiter.Threading.Tasks;
 
 namespace Microsoft.Extensions.Caching.Distributed
 {

@@ -16,7 +16,7 @@ namespace WolfeReiter.Identity.Claims
         { 
             Options = options.Value;
         }
-        public async Task<IEnumerable<Group>> GroupsAsync(ClaimsPrincipal principal, string accessToken) 
+        public async Task<IEnumerable<Group>?> GroupsAsync(ClaimsPrincipal principal, string accessToken) 
         {
             var oid = principal.GetObjectId();
             if (oid == null) return null; //no objectidentifer means not an AzureAD ClaimsPrincipal

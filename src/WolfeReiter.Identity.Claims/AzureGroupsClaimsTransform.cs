@@ -26,7 +26,7 @@ namespace WolfeReiter.Identity.Claims
         private readonly ITokenAcquisition TokenAcquisition;
         private readonly IDistributedCache Cache;
         //cache for ClaimsPrincipal from the current scope.
-        private ClaimsPrincipal ScopePrincipal;
+        private ClaimsPrincipal? ScopePrincipal;
         public AzureGroupsClaimsTransform(IGraphUtilityService graphService, ITokenAcquisition tokenAcquisition,
             IDistributedCache cache, IOptions<GraphUtilityServiceOptions> options)
         {
@@ -58,7 +58,7 @@ namespace WolfeReiter.Identity.Claims
                 await Cache.SetGroupClaimsAsync(principal, groupNames, Options.DistributedCacheEntryOptions);
             }
 
-            foreach (var group in groupNames)
+            foreach (var group in groupNames!)
             {
                 claimsIdentity.AddClaim(new Claim(ClaimTypes.Role, group, ClaimValueTypes.String, "AzureAD"));
             }
