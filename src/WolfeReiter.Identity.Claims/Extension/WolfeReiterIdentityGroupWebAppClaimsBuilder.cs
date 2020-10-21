@@ -6,7 +6,7 @@ using WolfeReiter.Identity.Claims;
 
 namespace Microsoft.Identity.Web
 {
-    public static class WolefeReiterIdentityGroupWebAppClaimsBuilder
+    public static class WolfeReiterIdentityGroupWebAppClaimsBuilder
     {
         public static void AddWolfeReiterAzureGroupsClaimsTransform(this IServiceCollection services, IConfiguration configuration)
         {
