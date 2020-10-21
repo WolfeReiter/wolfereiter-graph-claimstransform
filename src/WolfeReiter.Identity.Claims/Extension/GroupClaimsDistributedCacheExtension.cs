@@ -18,16 +18,16 @@ namespace Microsoft.Extensions.Caching.Distributed
             await cache.SetStringAsync(CacheKey(principal), json, options);
         }
 
-        public static async Task<GroupClaimsResult> GetGroupClaimsAsync(this IDistributedCache cache, ClaimsPrincipal principal)
+        public static async Task<AsyncResult<IEnumerable<string>>> GetGroupClaimsAsync(this IDistributedCache cache, ClaimsPrincipal principal)
         {
-            var result = new GroupClaimsResult() { Success = false };
+            var result = new AsyncResult<IEnumerable<string>>();
             if (principal != null && principal.GetObjectId() != null)
             {
                 string json = await cache.GetStringAsync(CacheKey(principal));
                 if (!string.IsNullOrEmpty(json)) 
                 {
                     result.Success    = true;
-                    result.GroupNames = JsonSerializer.Deserialize<IEnumerable<string>>(json);
+                    result.Value = JsonSerializer.Deserialize<IEnumerable<string>>(json);
                 }
             }
             return result;
@@ -40,11 +40,5 @@ namespace Microsoft.Extensions.Caching.Distributed
             await cache.RemoveAsync(CacheKey(principal));
         }
         static string CacheKey(ClaimsPrincipal principal) =>  $"principal.oid.groups:{principal.GetObjectId():N}";
-    }
-
-    public class GroupClaimsResult
-    {
-        public bool Success { get; set; }
-        public IEnumerable<string> GroupNames { get; set; } = Enumerable.Empty<string>();
     }
 }

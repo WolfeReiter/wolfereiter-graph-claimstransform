@@ -50,7 +50,7 @@ namespace WolfeReiter.Identity.Claims
             claimsIdentity.AddClaim(new Claim("transform", this.GetType().FullName));
 
             var claimsCacheResult = await Cache.GetGroupClaimsAsync(principal);
-            var groupNames        = claimsCacheResult.GroupNames;
+            var groupNames        = claimsCacheResult.Value;
             if (!claimsCacheResult.Success)
             {
                 var accessToken = await TokenAcquisition.GetAccessTokenForAppAsync(Options.GraphEndpoint);
