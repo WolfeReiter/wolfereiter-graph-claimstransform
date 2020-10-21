@@ -29,18 +29,17 @@ namespace WebApp_OpenIDConnect_Group_Role_Transform.Controllers
         /// <returns></returns>
         [HttpGet]
         [Route("/Account/SignOut/")]
-        public async Task<IActionResult> SignOut(string scheme)
+        public async Task<IActionResult> SignOut()
         {
             await Cache.RemoveGroupClaimsAsync(User);
-            scheme ??= OpenIdConnectDefaults.AuthenticationScheme;
-            var callbackUrl = Url.ActionLink("SignedOut");
             return SignOut(
                  new AuthenticationProperties
                  {
-                    RedirectUri = callbackUrl
+                    RedirectUri = Url.ActionLink("SignedOut")
                  },
                  CookieAuthenticationDefaults.AuthenticationScheme,
-                 scheme);
+                 OpenIdConnectDefaults.AuthenticationScheme
+                 );
         }
 
         [HttpGet]
