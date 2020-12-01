@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -16,6 +17,7 @@ namespace WolfeReiter.Identity.Claims
         { 
             Options = options.Value;
         }
+
         public async Task<IEnumerable<Group>?> GroupsAsync(ClaimsPrincipal principal, string accessToken) 
         {
             var oid = principal.GetObjectId();
@@ -27,7 +29,7 @@ namespace WolfeReiter.Identity.Claims
                 .Request()
                 .GetAsync();
 
-            var groups = await AllPagesAsync<Group>(graphServiceClient, memberOfGroups);
+            var groups = await AllPagesAsync<DirectoryObject, Group>(graphServiceClient, memberOfGroups);
             return groups;
         }
     }

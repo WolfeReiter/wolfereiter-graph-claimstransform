@@ -16,20 +16,30 @@ namespace WolfeReiter.Identity.Claims
         {
             Options = options.Value;
         }
-        protected async Task<IEnumerable<T>?> AllPagesAsync<T>(IBaseClient graphClient, ICollectionPage<DirectoryObject> page) 
-            where T : class
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="graphClient">Authenticated GraphServiceClient object.</param>
+        /// <param name="page">Result page object from .GetAsync() method</param>
+        /// <typeparam name="TSource">Source collection member type (e.g. DirectoryObject, User, Group)</typeparam>
+        /// <typeparam name="TResult">Result collection member type (e.g. Group, User)</typeparam>
+        /// <returns></returns>
+        protected async Task<IEnumerable<TResult>?> AllPagesAsync<TSource, TResult>(
+            IBaseClient graphClient, ICollectionPage<TSource> page) 
+            where TResult : class
         {
             if (page == null) return null;
 
-            var allItems = new List<T>();
+            var allItems = new List<TResult>();
 
-            var pageIterator = PageIterator<DirectoryObject>.CreatePageIterator(
+            var pageIterator = PageIterator<TSource>.CreatePageIterator(
                 graphClient, page,
                 (item) =>
                 {
                     // This code executes for each item in the
                     // collection
-                    if (item is T t)
+                    if (item is TResult t)
                     {
                         // Only add if the item is the requested type
                         allItems.Add(t);
@@ -43,7 +53,6 @@ namespace WolfeReiter.Identity.Claims
 
             return allItems;
         }
-
         protected GraphServiceClient NewAuthenticatedClient(string accessToken)
         {
             return new GraphServiceClient(Options.GraphApiVersion,
