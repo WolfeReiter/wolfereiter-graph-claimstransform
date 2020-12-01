@@ -53,7 +53,7 @@ namespace WolfeReiter.Identity.Claims
 
             return allItems;
         }
-        protected GraphServiceClient NewAuthenticatedClient(string accessToken)
+        public GraphServiceClient NewAuthenticatedClient(string accessToken)
         {
             return new GraphServiceClient(Options.GraphApiVersion,
                 new DelegateAuthenticationProvider(
