@@ -20,7 +20,7 @@ namespace Microsoft.Identity.Web
             where TGraphUtilityService : class, IGraphUtilityService
         {
             services.Configure<GraphUtilityServiceOptions>(configuration.GetSection("WolfeReiterIdentityClaims"));
-            services.AddSingleton<IGraphUtilityService, TGraphUtilityService>();
+            services.AddSingleton<TGraphUtilityService>();
             services.AddScoped<IClaimsTransformation, AzureGroupsClaimsTransform>();
         }
     }
