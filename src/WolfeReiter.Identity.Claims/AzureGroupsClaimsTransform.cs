@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 
@@ -27,13 +29,15 @@ namespace WolfeReiter.Identity.Claims
         private readonly IDistributedCache Cache;
         //cache for ClaimsPrincipal from the current scope.
         private ClaimsPrincipal? ScopePrincipal;
+        private readonly ILogger Logger;
         public AzureGroupsClaimsTransform(IGraphUtilityService graphService, ITokenAcquisition tokenAcquisition,
-            IDistributedCache cache, IOptions<GraphUtilityServiceOptions> options)
+            IDistributedCache cache, IOptions<GraphUtilityServiceOptions> options, ILoggerFactory logger)
         {
             GraphService     = graphService;
             TokenAcquisition = tokenAcquisition;
             Options          = options.Value;  
             Cache            = cache;
+            Logger           = logger.CreateLogger<AzureGroupsClaimsTransform>();
         }
         public async Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
         {
@@ -54,7 +58,20 @@ namespace WolfeReiter.Identity.Claims
             if (!claimsCacheResult.Success)
             {
                 var accessToken = await TokenAcquisition.GetAccessTokenForAppAsync(Options.GraphEndpoint);
-                groupNames = (await GraphService.GroupsAsync(principal, accessToken)).Select(x => x.DisplayName);
+                try
+                {
+                    groupNames = (await GraphService.GroupsAsync(principal, accessToken)).Select(x => x.DisplayName);
+                }
+                catch (Exception e)
+                {
+                    var requestId = Activity.Current.Id;
+                    Logger.LogCritical(e, $"AzureGroupsClaimsTransform exception from RequestId: {requestId}.");
+
+                    claimsIdentity.AddClaim(new Claim("transform-error", e.Message));
+                    claimsIdentity.AddClaim(new Claim("transform-error-request-id", requestId));
+
+                    return principal;
+                }
                 await Cache.SetGroupClaimsAsync(principal, groupNames, Options.DistributedCacheEntryOptions);
             }
 
