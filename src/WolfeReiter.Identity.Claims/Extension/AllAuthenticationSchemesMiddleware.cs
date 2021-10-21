@@ -1,19 +1,13 @@
-using System;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using System.Security.Claims;
-using Microsoft.AspNetCore.Http.Features.Authentication;
-
-namespace WolfeReiter.AspNetCore.Authentication
+namespace Microsoft.AspNetCore.Authentication
 {
-    public class AllAuthenticationMiddleware
+    public class AllAuthenticationSchemesMiddleware
     {
         private readonly RequestDelegate _next;
 
-        public AllAuthenticationMiddleware(RequestDelegate next, IAuthenticationSchemeProvider schemes)
+        public AllAuthenticationSchemesMiddleware(RequestDelegate next, IAuthenticationSchemeProvider schemes)
         {      
             _next = next;
             Schemes = schemes;

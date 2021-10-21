@@ -1,15 +1,14 @@
 using Microsoft.AspNetCore.Authentication;
-using WolfeReiter.AspNetCore.Authentication;
 
 namespace Microsoft.AspNetCore.Builder
 {
     /// <summary>
     /// Extension methods to add authentication capabilities to an HTTP application pipeline.
     /// </summary>
-    public static class AllAuthenticationBuilderExtension
+    public static class AllAuthenticationSchemesBuilderExtension
     {
         /// <summary>
-        /// Adds the <see cref="WolfeReiter.AspNetCore.Authentication.AllAuthenticationMiddleware"/> to the specified 
+        /// Adds the <see cref="AllAuthenticationMiddleware"/> to the specified 
         /// <see cref="IApplicationBuilder"/>, which enables authentication capabilities by checking all registered
         /// schemes.
         /// </summary>
@@ -17,7 +16,7 @@ namespace Microsoft.AspNetCore.Builder
         /// <returns>A reference to this instance after the operation has completed.</returns>
         public static IApplicationBuilder UseAllAuthenticationSchemes(this IApplicationBuilder app)
         {
-            return app.UseMiddleware<AllAuthenticationMiddleware>();
+            return app.UseMiddleware<AllAuthenticationSchemesMiddleware>();
         }
     }
 }
