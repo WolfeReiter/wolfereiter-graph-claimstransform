@@ -51,7 +51,7 @@ namespace WolfeReiter.Identity.Claims
 
             var claimsIdentity = principal.Identities.First();
             //mark principal with claim for this transform
-            claimsIdentity.AddClaim(new Claim("transform", this.GetType().FullName));
+            claimsIdentity.AddClaim(new Claim("transform", GetType()?.FullName ?? "AzureGroupsClaimsTransform"));
 
             var claimsCacheResult = await Cache.GetGroupClaimsAsync(principal);
             var groupNames        = claimsCacheResult.Value;
@@ -60,11 +60,11 @@ namespace WolfeReiter.Identity.Claims
                 var accessToken = await TokenAcquisition.GetAccessTokenForAppAsync(Options.GraphEndpoint);
                 try
                 {
-                    groupNames = (await GraphService.GroupsAsync(principal, accessToken)).Select(x => x.DisplayName);
+                    groupNames = (await GraphService.GroupsAsync(principal, accessToken))?.Select(x => x.DisplayName);
                 }
                 catch (Exception e)
                 {
-                    var requestId = Activity.Current.Id;
+                    var requestId = Activity.Current?.Id ?? "<null>";
                     Logger.LogCritical(e, "AzureGroupsClaimsTransform exception from RequestId: {requestId}.", requestId);
 
                     claimsIdentity.AddClaim(new Claim("transform-error", e.Message));
@@ -72,7 +72,10 @@ namespace WolfeReiter.Identity.Claims
 
                     return principal;
                 }
-                await Cache.SetGroupClaimsAsync(principal, groupNames, Options.DistributedCacheEntryOptions);
+                if (groupNames != null)
+                {
+                    await Cache.SetGroupClaimsAsync(principal, groupNames, Options.DistributedCacheEntryOptions);
+                }
             }
 
             foreach (var group in groupNames!)

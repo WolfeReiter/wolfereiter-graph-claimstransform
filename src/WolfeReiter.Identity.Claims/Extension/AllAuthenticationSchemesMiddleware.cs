@@ -42,8 +42,16 @@ namespace Microsoft.AspNetCore.Authentication
 
             //check the default authentication scheme first and then continue to the rest.
             var defaultAuthenticate = await Schemes.GetDefaultAuthenticateSchemeAsync();
-            var schemes = new List<AuthenticationScheme> { defaultAuthenticate };
-            schemes.AddRange((await Schemes.GetAllSchemesAsync()).Where(x => x != defaultAuthenticate));
+            var schemes = new List<AuthenticationScheme>();
+            if (defaultAuthenticate != null)
+            {
+                schemes.Add(defaultAuthenticate);
+                schemes.AddRange((await Schemes.GetAllSchemesAsync()).Where(x => x != defaultAuthenticate));
+            }
+            else
+            {
+                schemes.AddRange(await Schemes.GetAllSchemesAsync());
+            }
             foreach (var scheme in schemes)
             {
                 var result = await context.AuthenticateAsync(scheme.Name);
