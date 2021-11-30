@@ -65,7 +65,7 @@ namespace WolfeReiter.Identity.Claims
                 catch (Exception e)
                 {
                     var requestId = Activity.Current.Id;
-                    Logger.LogCritical(e, $"AzureGroupsClaimsTransform exception from RequestId: {requestId}.");
+                    Logger.LogCritical(e, "AzureGroupsClaimsTransform exception from RequestId: {requestId}.", requestId);
 
                     claimsIdentity.AddClaim(new Claim("transform-error", e.Message));
                     claimsIdentity.AddClaim(new Claim("transform-error-request-id", requestId));
