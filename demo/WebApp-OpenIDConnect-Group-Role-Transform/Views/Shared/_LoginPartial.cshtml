@@ -1,5 +1,5 @@
 @using System.Security.Principal
-@if (User.Identity.IsAuthenticated)
+@if (User.Identity?.IsAuthenticated ?? false)
 {
     @*Use the project Account/Logout method rather than the one from Mictosoft.Web.Identity.UI to control cacheing*@ 
     @*remove asp-area="MicrosoftIdentity" attribute*@
