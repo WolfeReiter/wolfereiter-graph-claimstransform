@@ -10,7 +10,7 @@ namespace WolfeReiter.Identity.Claims
         public int GroupClaimsCacheAbsoluteExpirationHours { get; set; } = 24;
         public int GroupClaimsCacheSlidingExpirationMinutes { get; set; } = 30;
         public DistributedCacheEntryOptions DistributedCacheEntryOptions => new DistributedCacheEntryOptions()
-                        .SetAbsoluteExpiration(DateTime.Now.AddHours(GroupClaimsCacheAbsoluteExpirationHours))
+                        .SetAbsoluteExpiration(DateTime.UtcNow.AddHours(GroupClaimsCacheAbsoluteExpirationHours))
                         .SetSlidingExpiration(TimeSpan.FromMinutes(GroupClaimsCacheSlidingExpirationMinutes));
     }
 }
