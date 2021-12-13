@@ -1,5 +1,5 @@
-
 using System;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Caching.Distributed;
 namespace WolfeReiter.Identity.Claims
 {
@@ -12,5 +12,6 @@ namespace WolfeReiter.Identity.Claims
         public DistributedCacheEntryOptions DistributedCacheEntryOptions => new DistributedCacheEntryOptions()
                         .SetAbsoluteExpiration(DateTime.UtcNow.AddHours(GroupClaimsCacheAbsoluteExpirationHours))
                         .SetSlidingExpiration(TimeSpan.FromMinutes(GroupClaimsCacheSlidingExpirationMinutes));
+        public string Scheme = OpenIdConnectDefaults.AuthenticationScheme;
     }
 }

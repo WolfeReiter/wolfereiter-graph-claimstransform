@@ -57,7 +57,7 @@ namespace WolfeReiter.Identity.Claims
             var groupNames        = claimsCacheResult.Value;
             if (!claimsCacheResult.Success)
             {
-                var accessToken = await TokenAcquisition.GetAccessTokenForAppAsync(Options.GraphEndpoint);
+                var accessToken = await TokenAcquisition.GetAccessTokenForAppAsync(Options.GraphEndpoint, authenticationScheme:Options.Scheme);
                 try
                 {
                     groupNames = (await GraphService.GroupsAsync(principal, accessToken))?.Select(x => x.DisplayName);
