@@ -4,8 +4,10 @@ using System.Linq;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Azure.Core;
+using Azure.Identity;
 using Microsoft.Extensions.Options;
-using Microsoft.Graph;
+using Microsoft.Graph.Models;
 using Microsoft.Identity.Web;
 
 namespace WolfeReiter.Identity.Claims
@@ -13,23 +15,35 @@ namespace WolfeReiter.Identity.Claims
     public class GraphUtilityService : GraphUtilityServiceBase, IGraphUtilityService
     {
         private readonly GraphUtilityServiceOptions Options;
-        public GraphUtilityService(IOptions<GraphUtilityServiceOptions> options) : base(options) 
-        { 
+
+        public GraphUtilityService(IOptions<GraphUtilityServiceOptions> options)
+            : base(options)
+        {
             Options = options.Value;
         }
 
-        public async Task<IEnumerable<Group>?> GroupsAsync(ClaimsPrincipal principal, string accessToken) 
+        public async Task<IEnumerable<Group>?> GroupsAsync(ClaimsPrincipal principal)
         {
             var oid = principal.GetObjectId();
-            if (oid == null) return null; //no objectidentifer means not an AzureAD ClaimsPrincipal
+            if (oid == null)
+                return null; //no objectidentifer means not an AzureAD ClaimsPrincipal
 
-            var graphServiceClient = NewAuthenticatedClient(accessToken);
+            var credential = new ClientSecretCredential(
+                Options.TenantId,
+                Options.ClientId,
+                Options.ClientSecret,
+                new TokenCredentialOptions { AuthorityHost = AzureAuthorityHosts.AzurePublicCloud }
+            );
 
-            var memberOfGroups = await graphServiceClient.Users[oid].MemberOf
-                .Request()
-                .GetAsync();
+            var graphServiceClient = NewAuthenticatedClient(NewClientSecretCredential());
 
-            var groups = await AllPagesAsync<DirectoryObject, Group>(graphServiceClient, memberOfGroups);
+            var memberOfGroups = await graphServiceClient.Users[oid].MemberOf.GetAsync();
+
+            var groups = await AllPagesAsync<
+                DirectoryObject,
+                DirectoryObjectCollectionResponse,
+                Group
+            >(graphServiceClient, memberOfGroups);
             return groups;
         }
     }

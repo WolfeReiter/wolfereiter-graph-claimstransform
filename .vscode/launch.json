@@ -10,7 +10,7 @@
             "request": "launch",
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/demo/WebApp-OpenIDConnect-Group-Role-Transform/bin/Debug/netcoreapp3.1/WebApp-OpenIDConnect-Group-Role-Transform.dll",
+            "program": "${workspaceFolder}/demo/WebApp-OpenIDConnect-Group-Role-Transform/bin/Debug/net6.0/WebApp-OpenIDConnect-Group-Role-Transform.dll",
             "args": [],
             "cwd": "${workspaceFolder}/demo/WebApp-OpenIDConnect-Group-Role-Transform/",
             "stopAtEntry": false,

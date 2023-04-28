@@ -48,10 +48,13 @@ namespace WebApp_OpenIDConnect_Group_Role_Transform
             });
             */
             // Sign-in users with the Microsoft identity platform
-            services.AddMicrosoftIdentityWebAppAuthentication(Configuration)
-                .EnableTokenAcquisitionToCallDownstreamApi(new string[] { "User.Read", "Directory.Read.All" })
+            services
+                .AddMicrosoftIdentityWebAppAuthentication(Configuration)
+                .EnableTokenAcquisitionToCallDownstreamApi(
+                    new string[] { "User.Read", "Directory.Read.All" }
+                )
                 .AddDistributedTokenCaches();
-            
+
             /*
             services.AddControllersWithViews(options =>
             {
@@ -92,7 +95,8 @@ namespace WebApp_OpenIDConnect_Group_Role_Transform
             {
                 endpoints.MapControllerRoute(
                     name: "default",
-                    pattern: "{controller=Home}/{action=Index}/{id?}");
+                    pattern: "{controller=Home}/{action=Index}/{id?}"
+                );
                 endpoints.MapRazorPages();
             });
         }
