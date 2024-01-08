@@ -24,7 +24,7 @@ namespace Microsoft.Extensions.Caching.Distributed
             var result = new AsyncResult<IEnumerable<string>>();
             if (principal != null && principal.GetObjectId() != null)
             {
-                string json = await cache.GetStringAsync(CacheKey(principal));
+                string json = await cache.GetStringAsync(CacheKey(principal)) ?? string.Empty;
                 if (!string.IsNullOrEmpty(json)) 
                 {
                     result.Success    = true;
