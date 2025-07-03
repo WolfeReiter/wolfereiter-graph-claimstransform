@@ -8,7 +8,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Graph" Version="5.*" />
-    <PackageReference Include="Microsoft.Identity.Web" Version="3.*" />
+    <!--error NU1102: Unable to find package Microsoft.Identity.Web.Certificateless with version (>= 3.10.0)-->
+    <PackageReference Include="Microsoft.Identity.Web" Version="3.9.*" />
     <PackageReference Include="Microsoft.Identity.Web.UI" Version="3.*" />
   </ItemGroup>
 
