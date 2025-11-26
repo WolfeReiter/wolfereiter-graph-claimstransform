@@ -9,7 +9,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication" Version="2.*" />
     <PackageReference Include="Microsoft.Graph" Version="5.*" />
         <!--error NU1102: Unable to find package Microsoft.Identity.Web.Certificateless with version (>= 3.10.0)-->
-        <PackageReference Include="Microsoft.Identity.Web" Version="3.9.*" />
+        <PackageReference Include="Microsoft.Identity.Web" Version="3.*" />
   </ItemGroup>
 
 </Project>
