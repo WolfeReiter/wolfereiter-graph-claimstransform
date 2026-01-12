@@ -1,21 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
-
   <PropertyGroup>
     <TargetFrameworks>net8.0</TargetFrameworks>
     <RootNamespace>WebApp_OpenIDConnect_Group_Role_Transform</RootNamespace>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.Graph" Version="5.*" />
     <!--error NU1102: Unable to find package Microsoft.Identity.Web.Certificateless with version (>= 3.10.0)-->
-    <PackageReference Include="Microsoft.Identity.Web" Version="3.*" />
-    <PackageReference Include="Microsoft.Identity.Web.UI" Version="3.*" />
+    <PackageReference Include="Microsoft.Identity.Web" Version="4.*" />
+    <PackageReference Include="Microsoft.Identity.Web.UI" Version="4.*" />
   </ItemGroup>
-
   <ItemGroup>
-    <ProjectReference
-      Include="..\..\src\WolfeReiter.Identity.Claims\WolfeReiter.Identity.Claims.csproj" />
+    <ProjectReference Include="..\..\src\WolfeReiter.Identity.Claims\WolfeReiter.Identity.Claims.csproj" />
   </ItemGroup>
-
 </Project>
