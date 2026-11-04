@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Extension to Microsoft.Identity.Web package uses Microsoft Graph API to add AzureAD Group memberships as Role claims.
+Extension to Microsoft.Identity.Web package uses Microsoft Graph API to add AzureAD security group memberships as Role claims. Microsoft 365 groups are not included.
 
 ## Configuration
 

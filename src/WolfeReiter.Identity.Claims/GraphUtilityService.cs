@@ -44,7 +44,15 @@ namespace WolfeReiter.Identity.Claims
                 DirectoryObjectCollectionResponse,
                 Group
             >(graphServiceClient, memberOfGroups);
-            return groups;
+            return groups?.Where(IsSecurityGroup);
         }
+
+        /// <summary>
+        /// True for security groups. Microsoft 365 groups have "Unified" in GroupTypes and are
+        /// excluded even when they are also security enabled.
+        /// </summary>
+        private static bool IsSecurityGroup(Group group) =>
+            group.SecurityEnabled == true
+            && !(group.GroupTypes?.Contains("Unified", StringComparer.OrdinalIgnoreCase) ?? false);
     }
 }
