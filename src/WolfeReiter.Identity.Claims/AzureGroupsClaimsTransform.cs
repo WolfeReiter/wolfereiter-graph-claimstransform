@@ -3,45 +3,34 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Security.Claims;
-using System.Text.Json;
 using System.Threading.Tasks;
-using Azure.Identity;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 
 namespace WolfeReiter.Identity.Claims
 {
     /// <summary>
     /// AzureGroupsClaimsTransform is meant to be added as a scoped service in ConfigureServices() of startup.cs.
-    /// It will find the Group memberships for the current scope ClaimsPrincipal authenticated by AzureAD and
-    /// add the Group names that user is a member of as Role claims.
+    /// It reads the group Object IDs Entra ID puts in the <c>groups</c> claim of the token and adds a
+    /// Role claim for each one found in the <see cref="GroupRoleMap"/>. Entra ID is not queried
+    /// during sign in.
     ///
     /// services.AddScoped&gt;IClaimsTransformation, AzureGroupsClaimsTransform&lt;();
     /// </summary>
     public class AzureGroupsClaimsTransform : IClaimsTransformation
     {
-        private readonly GraphUtilityServiceOptions Options;
-        private readonly IGraphUtilityService GraphService;
-        private readonly IDistributedCache Cache;
+        public const string GroupsClaimType = "groups";
+
+        private readonly GroupRoleMap RoleMap;
 
         //cache for ClaimsPrincipal from the current scope.
         private ClaimsPrincipal? ScopePrincipal;
         private readonly ILogger Logger;
 
-        public AzureGroupsClaimsTransform(
-            IGraphUtilityService graphService,
-            IDistributedCache cache,
-            IOptions<GraphUtilityServiceOptions> options,
-            IOptions<MicrosoftIdentityOptions> identityOptions,
-            ILoggerFactory logger
-        )
+        public AzureGroupsClaimsTransform(GroupRoleMap roleMap, ILoggerFactory logger)
         {
-            GraphService = graphService;
-            Options = options.Value;
-            Cache = cache;
+            RoleMap = roleMap;
             Logger = logger.CreateLogger<AzureGroupsClaimsTransform>();
         }
 
@@ -63,48 +52,67 @@ namespace WolfeReiter.Identity.Claims
                 new Claim("transform", GetType()?.FullName ?? "AzureGroupsClaimsTransform")
             );
 
-            var claimsCacheResult = await Cache.GetGroupClaimsAsync(principal);
-            var groupNames = claimsCacheResult.Value;
-            if (!claimsCacheResult.Success)
+            if (HasGroupsOverage(principal))
             {
-                try
-                {
-                    groupNames = (await GraphService.GroupsAsync(principal))
-                        ?.Select(x => x.DisplayName)
-                        .Where(x => x != null)!;
-                }
-                catch (Exception e)
-                {
-                    var requestId = Activity.Current?.Id ?? "<null>";
-                    Logger.LogCritical(
-                        e,
-                        "AzureGroupsClaimsTransform exception from RequestId: {requestId}.",
-                        requestId
-                    );
-
-                    claimsIdentity.AddClaim(new Claim("transform-error", e.Message));
-                    claimsIdentity.AddClaim(new Claim("transform-error-request-id", requestId));
-
-                    return principal;
-                }
-                if (groupNames != null)
-                {
-                    await Cache.SetGroupClaimsAsync(
-                        principal,
-                        groupNames,
-                        Options.DistributedCacheEntryOptions
-                    );
-                }
+                const string message =
+                    "The token omits the groups claim because the user belongs to too many groups. "
+                    + "Limit the app registration's groups claim to groups assigned to the application.";
+                Logger.LogWarning(
+                    "{Message} Object ID {ObjectId}.",
+                    message,
+                    principal.GetObjectId()
+                );
+                claimsIdentity.AddClaim(new Claim("transform-error", message));
             }
 
-            foreach (var group in groupNames!)
+            IReadOnlyDictionary<Guid, string> map;
+            try
             {
-                claimsIdentity.AddClaim(
-                    new Claim(ClaimTypes.Role, group, ClaimValueTypes.String, "AzureAD")
+                map = await RoleMap.GetAsync();
+            }
+            catch (Exception e)
+            {
+                // a group name with no match or several matches, or any other failure to build
+                // the map, is critical and is not handled here
+                Logger.LogCritical(
+                    e,
+                    "Group role map failed in RequestId {RequestId}. {Message}",
+                    Activity.Current?.Id ?? "<null>",
+                    e.Message
                 );
+                throw;
+            }
+
+            var roles = principal
+                .FindAll(GroupsClaimType)
+                .Select(x =>
+                    Guid.TryParse(x.Value, out var id) && map.TryGetValue(id, out var role)
+                        ? role
+                        : null
+                )
+                .Where(x => x != null)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+
+            foreach (var role in roles)
+            {
+                if (!claimsIdentity.HasClaim(ClaimTypes.Role, role!))
+                    claimsIdentity.AddClaim(
+                        new Claim(ClaimTypes.Role, role!, ClaimValueTypes.String, "AzureAD")
+                    );
             }
 
             return principal;
         }
+
+        /// <summary>
+        /// Entra ID leaves out the groups claim and points to Graph instead when the user is in
+        /// more groups than fit in the token.
+        /// </summary>
+        private static bool HasGroupsOverage(ClaimsPrincipal principal) =>
+            principal.HasClaim(x => x.Type == "hasgroups")
+            || principal.HasClaim(x =>
+                x.Type == "_claim_names" && x.Value.Contains("\"groups\"", StringComparison.Ordinal)
+            );
     }
 }

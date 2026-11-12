@@ -9,6 +9,17 @@ namespace WolfeReiter.Identity.Claims
 {
     public interface IGraphUtilityService
     {
-        Task<IEnumerable<Group>?> GroupsAsync(ClaimsPrincipal principal);
+        [Obsolete("Role claims come from the token groups claim and Entra ID is no longer queried at sign in.", error: true)]
+        Task<IEnumerable<Group>?> GroupsAsync(ClaimsPrincipal principal) =>
+            throw new NotSupportedException("Role claims come from the token groups claim and Entra ID is no longer queried at sign in.");
+
+        /// <summary>
+        /// Every security group whose display name matches <paramref name="displayName"/>.
+        /// Microsoft 365 groups are excluded.
+        /// </summary>
+        Task<IEnumerable<Group>> SecurityGroupsByDisplayNameAsync(string displayName) =>
+            throw new NotSupportedException(
+                $"{GetType().Name} does not implement SecurityGroupsByDisplayNameAsync, which GroupNames discovery requires."
+            );
     }
 }

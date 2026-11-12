@@ -75,7 +75,7 @@ namespace WolfeReiter.Identity.Claims
             return credential;
         }
 
-        public GraphServiceClient NewAuthenticatedClient(TokenCredential credential)
+        public virtual GraphServiceClient NewAuthenticatedClient(TokenCredential credential)
         {
             return new GraphServiceClient(credential);
         }

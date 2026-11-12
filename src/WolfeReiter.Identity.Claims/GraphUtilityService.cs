@@ -22,29 +22,27 @@ namespace WolfeReiter.Identity.Claims
             Options = options.Value;
         }
 
-        public async Task<IEnumerable<Group>?> GroupsAsync(ClaimsPrincipal principal)
+        public async Task<IEnumerable<Group>> SecurityGroupsByDisplayNameAsync(string displayName)
         {
-            var oid = principal.GetObjectId();
-            if (oid == null)
-                return null; //no objectidentifer means not an AzureAD ClaimsPrincipal
-
-            var credential = new ClientSecretCredential(
-                Options.TenantId,
-                Options.ClientId,
-                Options.ClientSecret,
-                new TokenCredentialOptions { AuthorityHost = AzureAuthorityHosts.AzurePublicCloud }
-            );
-
             var graphServiceClient = NewAuthenticatedClient(NewClientSecretCredential());
+            var escaped = displayName.Replace("'", "''");
+            var page = await graphServiceClient.Groups.GetAsync(request =>
+            {
+                request.QueryParameters.Filter = $"displayName eq '{escaped}'";
+                request.QueryParameters.Select = new[]
+                {
+                    "id",
+                    "displayName",
+                    "securityEnabled",
+                    "groupTypes",
+                };
+            });
 
-            var memberOfGroups = await graphServiceClient.Users[oid].MemberOf.GetAsync();
-
-            var groups = await AllPagesAsync<
-                DirectoryObject,
-                DirectoryObjectCollectionResponse,
-                Group
-            >(graphServiceClient, memberOfGroups);
-            return groups?.Where(IsSecurityGroup);
+            var groups = await AllPagesAsync<Group, GroupCollectionResponse, Group>(
+                graphServiceClient,
+                page
+            );
+            return groups?.Where(IsSecurityGroup).ToList() ?? new List<Group>();
         }
 
         /// <summary>

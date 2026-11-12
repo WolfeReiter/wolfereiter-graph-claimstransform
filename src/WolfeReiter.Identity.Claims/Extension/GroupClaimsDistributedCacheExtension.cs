@@ -1,60 +1,32 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
-using System.Text.Json;
 using System.Threading.Tasks;
-using Microsoft.Identity.Web;
 using WolfeReiter.Threading.Tasks;
 
 namespace Microsoft.Extensions.Caching.Distributed
 {
+    [Obsolete("Role claims come from the token groups claim and are no longer cached per user.", error: true)]
     public static class GroupClaimsDistributedExtension
     {
-        public static async Task SetGroupClaimsAsync(
+        [Obsolete("Role claims come from the token groups claim and are no longer cached per user.", error: true)]
+        public static Task SetGroupClaimsAsync(
             this IDistributedCache cache,
             ClaimsPrincipal principal,
             IEnumerable<string> groupNames,
             DistributedCacheEntryOptions options
-        )
-        {
-            if (principal == null || principal.GetObjectId() == null)
-                return;
+        ) => throw new NotSupportedException("Role claims come from the token groups claim and are no longer cached per user.");
 
-            var json = JsonSerializer.Serialize(groupNames);
-            await cache.SetStringAsync(CacheKey(principal), json, options);
-        }
-
-        public static async Task<AsyncResult<IEnumerable<string>>> GetGroupClaimsAsync(
+        [Obsolete("Role claims come from the token groups claim and are no longer cached per user.", error: true)]
+        public static Task<AsyncResult<IEnumerable<string>>> GetGroupClaimsAsync(
             this IDistributedCache cache,
             ClaimsPrincipal principal
-        )
-        {
-            var result = new AsyncResult<IEnumerable<string>>();
-            if (principal != null && principal.GetObjectId() != null)
-            {
-                string json = await cache.GetStringAsync(CacheKey(principal)) ?? string.Empty;
-                if (!string.IsNullOrEmpty(json))
-                {
-                    result.Success = true;
-                    result.Value = JsonSerializer.Deserialize<IEnumerable<string>>(json);
-                }
-            }
-            return result;
-        }
+        ) => throw new NotSupportedException("Role claims come from the token groups claim and are no longer cached per user.");
 
-        public static async Task RemoveGroupClaimsAsync(
+        [Obsolete("Role claims come from the token groups claim and are no longer cached per user.", error: true)]
+        public static Task RemoveGroupClaimsAsync(
             this IDistributedCache cache,
             ClaimsPrincipal principal
-        )
-        {
-            if (principal == null || principal.GetObjectId() == null)
-                return;
-
-            await cache.RemoveAsync(CacheKey(principal));
-        }
-
-        static string CacheKey(ClaimsPrincipal principal) =>
-            $"principal.oid.groups:{principal.GetObjectId():N}";
+        ) => throw new NotSupportedException("Role claims come from the token groups claim and are no longer cached per user.");
     }
 }
