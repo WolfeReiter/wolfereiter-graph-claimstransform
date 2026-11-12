@@ -15,10 +15,17 @@ namespace WolfeReiter.Identity.Claims
         private readonly GroupRoleMap Map;
         private readonly ILogger Logger;
 
-        public GroupRoleMapStartup(GroupRoleMap map, ILogger<GroupRoleMapStartup> logger)
+        private readonly IHostEnvironment? Environment;
+
+        public GroupRoleMapStartup(
+            GroupRoleMap map,
+            ILogger<GroupRoleMapStartup> logger,
+            IHostEnvironment? environment = null
+        )
         {
             Map = map;
             Logger = logger;
+            Environment = environment;
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
@@ -32,6 +39,11 @@ namespace WolfeReiter.Identity.Claims
                 Logger.LogCritical(e, "Group role map failed. {Message}", e.Message);
                 throw;
             }
+
+            if (Map.UsedMemoryStore && (Environment?.IsProduction() ?? false))
+                Logger.LogWarning(
+                    "Group names are resolved into the in-memory store, so they are looked up again on every restart. Use a persistent GroupRoleMapStore or GroupRoles in production."
+                );
         }
 
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

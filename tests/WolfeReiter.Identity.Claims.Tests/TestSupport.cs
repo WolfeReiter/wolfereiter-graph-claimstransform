@@ -33,18 +33,33 @@ namespace WolfeReiter.Identity.Claims.Tests
                 .ToList();
         }
 
-        public static Group Group(string name, Guid? id = null) =>
+        public int IdLookups;
+        public List<int> IdBatchSizes { get; } = new();
+
+        public Task<IEnumerable<Group>> GroupsByIdAsync(IEnumerable<Guid> ids)
+        {
+            Interlocked.Increment(ref IdLookups);
+            var wanted = ids.ToList();
+            IdBatchSizes.Add(wanted.Count);
+            return Task.FromResult<IEnumerable<Group>>(
+                Directory.Where(x => Guid.TryParse(x.Id, out var id) && wanted.Contains(id)).ToList()
+            );
+        }
+
+        public static Group Group(string name, Guid? id = null, bool roleAssignable = false) =>
             new()
             {
                 Id = (id ?? Guid.NewGuid()).ToString(),
                 DisplayName = name,
                 SecurityEnabled = true,
                 GroupTypes = new List<string>(),
+                IsAssignableToRole = roleAssignable,
+                CreatedDateTime = DateTimeOffset.UtcNow.AddDays(-30),
             };
 
-        public Group Add(string name)
+        public Group Add(string name, bool roleAssignable = false)
         {
-            var group = Group(name);
+            var group = Group(name, null, roleAssignable);
             Directory.Add(group);
             return group;
         }
@@ -96,19 +111,30 @@ namespace WolfeReiter.Identity.Claims.Tests
             IGroupRoleMapStore? store = null,
             Dictionary<string, string>? roles = null,
             params string[] names
-        ) =>
-            new(
-                Options.Create(
-                    new GraphUtilityServiceOptions
-                    {
-                        GroupRoles = roles ?? new(),
-                        GroupNames = names.ToList(),
-                    }
-                ),
+        ) => Map(graph, store, roles, names, null);
+
+        public static GroupRoleMap Map(
+            IGraphUtilityService graph,
+            IGroupRoleMapStore? store,
+            Dictionary<string, string>? roles,
+            string[] names,
+            Action<GraphUtilityServiceOptions>? configure,
+            Microsoft.Extensions.Logging.ILogger<GroupRoleMap>? logger = null
+        )
+        {
+            var options = new GraphUtilityServiceOptions
+            {
+                GroupRoles = roles ?? new(),
+                GroupNames = names.ToList(),
+            };
+            configure?.Invoke(options);
+            return new(
+                Options.Create(options),
                 graph,
                 store ?? new MemoryGroupRoleMapStore(),
-                NullLogger<GroupRoleMap>.Instance
+                logger ?? NullLogger<GroupRoleMap>.Instance
             );
+        }
 
         public static ClaimsPrincipal Principal(params Claim[] claims) =>
             new(

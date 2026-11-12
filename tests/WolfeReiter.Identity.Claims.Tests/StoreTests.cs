@@ -117,6 +117,36 @@ namespace WolfeReiter.Identity.Claims.Tests
         }
 
         [Fact]
+        public async Task FileIsReadableOnlyByOwner()
+        {
+            if (OperatingSystem.IsWindows())
+                return;
+            await new JsonFileGroupRoleMapStore(Path).SaveAsync(
+                new Dictionary<string, Guid> { ["Admins"] = Guid.NewGuid() },
+                default
+            );
+            Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(Path));
+        }
+
+        [Fact]
+        public async Task ExistingLooseFileIsTightenedOnSave()
+        {
+            if (OperatingSystem.IsWindows())
+                return;
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
+            File.WriteAllText(Path, "{}");
+            File.SetUnixFileMode(Path, (UnixFileMode)0b110_110_110);
+            File.WriteAllText(Path + ".tmp", "stale");
+            File.SetUnixFileMode(Path + ".tmp", (UnixFileMode)0b110_110_110);
+
+            await new JsonFileGroupRoleMapStore(Path).SaveAsync(
+                new Dictionary<string, Guid> { ["Admins"] = Guid.NewGuid() },
+                default
+            );
+            Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(Path));
+        }
+
+        [Fact]
         public async Task FileListingANameTwiceFails()
         {
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);

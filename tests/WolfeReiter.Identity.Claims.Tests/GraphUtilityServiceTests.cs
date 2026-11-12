@@ -92,7 +92,7 @@ namespace WolfeReiter.Identity.Claims.Tests
 
             var query = Uri.UnescapeDataString(Handler.Requests.Single().Query);
             Assert.Contains("$filter=displayName eq 'Admins'", query);
-            Assert.Contains("$select=id,displayName,securityEnabled,groupTypes", query);
+            Assert.Contains("$select=id,displayName,securityEnabled,groupTypes,isAssignableToRole,createdDateTime", query);
             Assert.EndsWith("/groups", Handler.Requests.Single().AbsolutePath);
         }
 
@@ -128,7 +128,22 @@ namespace WolfeReiter.Identity.Claims.Tests
         }
 
         [Fact]
-        public async Task DynamicSecurityGroupCounts()
+        public async Task DynamicGroupFromGraphIsIgnoredByDiscovery()
+        {
+            var assigned = Guid.NewGuid();
+            Handler.Responses.Enqueue(
+                Page(
+                    null,
+                    GroupJson(Guid.NewGuid().ToString(), "Admins", true, "DynamicMembership"),
+                    GroupJson(assigned.ToString(), "Admins")
+                )
+            );
+            var map = await Make.Map(new StubbedGraphUtilityService(Handler), null, null, "Admins").GetAsync();
+            Assert.Equal(assigned, Assert.Single(map).Key);
+        }
+
+        [Fact]
+        public async Task DynamicSecurityGroupIsReturnedByLookup()
         {
             Handler.Responses.Enqueue(
                 Page(null, GroupJson(Guid.NewGuid().ToString(), "Admins", true, "DynamicMembership"))
@@ -190,7 +205,55 @@ namespace WolfeReiter.Identity.Claims.Tests
             Assert.Equal("Admins", map[security]);
         }
 
+        [Fact]
+        public async Task GroupsByIdFiltersInBatchesOf15()
+        {
+            var ids = Enumerable.Range(0, 20).Select(_ => Guid.NewGuid()).ToList();
+            Handler.Responses.Enqueue(Page(null, GroupJson(ids[0].ToString(), "A")));
+            Handler.Responses.Enqueue(Page(null, GroupJson(ids[19].ToString(), "B", true, "Unified")));
+
+            var groups = (await new StubbedGraphUtilityService(Handler).GroupsByIdAsync(ids.Concat(ids))).ToList();
+
+            Assert.Equal(2, Handler.Requests.Count);
+            var first = Uri.UnescapeDataString(Handler.Requests[0].Query);
+            Assert.Contains($"$filter=id in ('{ids[0]}',", first);
+            Assert.Equal(15, first.Split("'").Count(x => Guid.TryParse(x, out _)));
+            Assert.Equal(5, Uri.UnescapeDataString(Handler.Requests[1].Query).Split("'").Count(x => Guid.TryParse(x, out _)));
+            Assert.Contains("isAssignableToRole", first);
+            // every kind of group comes back, so the caller can report what it is
+            Assert.Equal(new[] { ids[0].ToString(), ids[19].ToString() }, groups.Select(x => x.Id));
+        }
+
+        [Fact]
+        public async Task LookupReadsRoleAssignableAndCreated()
+        {
+            var json = new Dictionary<string, object?>
+            {
+                ["id"] = Guid.NewGuid().ToString(),
+                ["displayName"] = "Admins",
+                ["securityEnabled"] = true,
+                ["groupTypes"] = Array.Empty<string>(),
+                ["isAssignableToRole"] = true,
+                ["createdDateTime"] = "2024-01-02T03:04:05Z",
+            };
+            Handler.Responses.Enqueue(Page(null, json));
+
+            var group = Assert.Single(await LookupAsync("Admins"));
+            Assert.True(group.IsAssignableToRole);
+            Assert.Equal(new DateTimeOffset(2024, 1, 2, 3, 4, 5, TimeSpan.Zero), group.CreatedDateTime);
+        }
+
         class MinimalGraph : IGraphUtilityService { }
+
+        [Fact]
+        public async Task ImplementationWithoutIdLookupReportsNotSupported()
+        {
+            IGraphUtilityService graph = new MinimalGraph();
+            var ex = await Assert.ThrowsAsync<NotSupportedException>(() =>
+                graph.GroupsByIdAsync(new[] { Guid.NewGuid() })
+            );
+            Assert.Contains("GroupRoleMapVerifyStored", ex.Message);
+        }
 
         [Fact]
         public async Task ImplementationWithoutLookupReportsNotSupported()

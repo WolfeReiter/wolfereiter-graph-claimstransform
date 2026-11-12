@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Graph.Models;
 
 namespace WolfeReiter.Identity.Claims
 {
@@ -113,54 +114,159 @@ namespace WolfeReiter.Identity.Claims
             if (names.Count > 0)
             {
                 var stored = await Store.Value.LoadAsync(cancellationToken);
-                var discovered = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+                var discovered = new Dictionary<string, Group>(StringComparer.OrdinalIgnoreCase);
                 foreach (var name in names.Where(x => !stored.ContainsKey(x)))
                     discovered[name] = await DiscoverAsync(name);
 
                 if (discovered.Count > 0)
                 {
-                    await Store.Value.SaveAsync(discovered, cancellationToken);
+                    await Store.Value.SaveAsync(
+                        discovered.ToDictionary(
+                            x => x.Key,
+                            x => Guid.Parse(x.Value.Id!),
+                            StringComparer.OrdinalIgnoreCase
+                        ),
+                        cancellationToken
+                    );
                     stored = await Store.Value.LoadAsync(cancellationToken);
                 }
 
                 foreach (var name in names)
                 {
-                    if (!stored.TryGetValue(name, out var id))
+                    if (!stored.ContainsKey(name))
                         throw new GroupRoleMapException(
                             $"Group '{name}' was discovered but is missing from the group role map store."
                         );
+                }
+
+                // every stored ID not just checked by discovery, including any written by another
+                // instance in the meantime
+                var toVerify = names
+                    .Where(x =>
+                        !discovered.TryGetValue(x, out var group)
+                        || Guid.Parse(group.Id!) != stored[x]
+                    )
+                    .ToList();
+                var excluded = Options.GroupRoleMapVerifyStored && toVerify.Count > 0
+                    ? await VerifyStoredAsync(toVerify, stored)
+                    : new HashSet<string>();
+
+                foreach (var name in names.Where(x => !excluded.Contains(x)))
+                {
+                    var id = stored[name];
                     if (map.TryGetValue(id, out var existing))
                         throw new GroupRoleMapException(
                             $"Group {id} is mapped to both '{existing}' and '{name}'."
                         );
                     map[id] = name;
-                    Logger.LogInformation(
-                        "Group '{GroupName}' maps to Object ID {ObjectId}{Source}.",
-                        name,
-                        id,
-                        discovered.ContainsKey(name) ? ", discovered and stored" : " from the store"
-                    );
+
+                    if (discovered.TryGetValue(name, out var group) && Guid.Parse(group.Id!) == id)
+                        Logger.LogWarning(
+                            "Group name '{GroupName}' was looked up in Entra ID and is now mapped to Object ID {ObjectId}, created {CreatedDateTime}, role-assignable {RoleAssignable}. Confirm this is the intended group.",
+                            name,
+                            id,
+                            group.CreatedDateTime,
+                            group.IsAssignableToRole == true
+                        );
+                    else
+                        Logger.LogInformation(
+                            "Group '{GroupName}' maps to Object ID {ObjectId} from the store{Verified}.",
+                            name,
+                            id,
+                            Options.GroupRoleMapVerifyStored ? ", checked against Entra ID" : ""
+                        );
                 }
             }
 
             return map;
         }
 
-        private async Task<Guid> DiscoverAsync(string name)
+        /// <summary>True when the store was needed and is the in-memory one.</summary>
+        internal bool UsedMemoryStore => Store.IsValueCreated && Store.Value is MemoryGroupRoleMapStore;
+
+        private async Task<Group> DiscoverAsync(string name)
         {
-            var groups = (await GraphService.SecurityGroupsByDisplayNameAsync(name)).ToList();
+            var found = (await GraphService.SecurityGroupsByDisplayNameAsync(name)).ToList();
+            // dynamic groups take members from a rule over user attributes, so they never count
+            var dynamic = found.Where(GroupKind.IsDynamic).ToList();
+            foreach (var group in dynamic)
+                Logger.LogWarning(
+                    "Security group '{GroupName}' ({ObjectId}) has dynamic membership and is ignored.",
+                    group.DisplayName,
+                    group.Id
+                );
+            var groups = found.Except(dynamic).ToList();
             if (groups.Count == 0)
-                throw new GroupRoleMapException($"No security group is named '{name}'.");
+                throw new GroupRoleMapException(
+                    dynamic.Count == 0
+                        ? $"No security group is named '{name}'."
+                        : $"No security group with assigned membership is named '{name}'. {dynamic.Count} with dynamic membership were ignored."
+                );
             if (groups.Count > 1)
                 throw new GroupRoleMapException(
                     $"{groups.Count} security groups are named '{name}' ({string.Join(", ", groups.Select(x => x.Id))}). "
                         + "Rename the duplicates or map the intended Object ID in GroupRoles."
                 );
-            if (!Guid.TryParse(groups[0].Id, out var id))
+            var match = groups[0];
+            if (!Guid.TryParse(match.Id, out _))
                 throw new GroupRoleMapException(
                     $"Security group '{name}' has no valid Object ID."
                 );
-            return id;
+            if (Options.GroupRoleMapRequireRoleAssignable && match.IsAssignableToRole != true)
+                throw new GroupRoleMapException(
+                    $"Security group '{name}' ({match.Id}) is not role-assignable, which GroupRoleMapRequireRoleAssignable requires."
+                );
+            return match;
+        }
+
+        /// <summary>
+        /// Checks stored IDs against Entra ID and returns the names whose group now has dynamic
+        /// membership, which are left out of the map.
+        /// </summary>
+        private async Task<HashSet<string>> VerifyStoredAsync(
+            IReadOnlyList<string> names,
+            IReadOnlyDictionary<string, Guid> stored
+        )
+        {
+            var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var found = new Dictionary<Guid, Group>();
+            foreach (var group in await GraphService.GroupsByIdAsync(names.Select(x => stored[x])))
+            {
+                if (Guid.TryParse(group.Id, out var id))
+                    found[id] = group;
+            }
+
+            foreach (var name in names)
+            {
+                var id = stored[name];
+                if (!found.TryGetValue(id, out var group))
+                    throw new GroupRoleMapException(
+                        $"Stored group '{name}' ({id}) does not exist in Entra ID."
+                    );
+                if (!GroupKind.IsSecurityGroup(group))
+                    throw new GroupRoleMapException(
+                        $"Stored group '{name}' ({id}) is not a security group."
+                    );
+                if (!string.Equals(group.DisplayName, name, StringComparison.OrdinalIgnoreCase))
+                    throw new GroupRoleMapException(
+                        $"Stored group '{name}' ({id}) is named '{group.DisplayName}' in Entra ID. "
+                            + "Correct the group or the store entry."
+                    );
+                if (Options.GroupRoleMapRequireRoleAssignable && group.IsAssignableToRole != true)
+                    throw new GroupRoleMapException(
+                        $"Stored group '{name}' ({id}) is not role-assignable, which GroupRoleMapRequireRoleAssignable requires."
+                    );
+                if (GroupKind.IsDynamic(group))
+                {
+                    Logger.LogWarning(
+                        "Stored group '{GroupName}' ({ObjectId}) has dynamic membership, so it is ignored and grants no role.",
+                        name,
+                        id
+                    );
+                    excluded.Add(name);
+                }
+            }
+            return excluded;
         }
     }
 }

@@ -60,6 +60,20 @@ namespace WolfeReiter.Identity.Claims
 
         /// <summary>Create the SqlServer or PgSql table on first use when it does not exist.</summary>
         public bool GroupRoleMapCreateTable { get; set; } = true;
+
+        /// <summary>
+        /// Require every group resolved from a name to be role-assignable
+        /// (<c>isAssignableToRole</c>). Only privileged administrators can create such groups, so
+        /// an ordinary user cannot claim a configured name first. Off by default.
+        /// </summary>
+        public bool GroupRoleMapRequireRoleAssignable { get; set; }
+
+        /// <summary>
+        /// At startup, check each Object ID read from the store against Microsoft Graph. The group
+        /// must still exist, be a security group, carry the stored name, and be role-assignable
+        /// when <see cref="GroupRoleMapRequireRoleAssignable"/> is set. On by default.
+        /// </summary>
+        public bool GroupRoleMapVerifyStored { get; set; } = true;
     }
 
     public enum GroupRoleMapStoreKind

@@ -2,3 +2,6 @@
 # so it is safe to put azuread secrets in there to run the demo
 
 appsettings.Development.json
+
+# group role map written by the Json store
+App_Data/

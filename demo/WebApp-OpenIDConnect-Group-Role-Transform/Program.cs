@@ -1,26 +1,38 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using Microsoft.Identity.Web;
+using Microsoft.Identity.Web.UI;
 
-namespace WebApp_OpenIDConnect_Group_Role_Transform
+var builder = WebApplication.CreateBuilder(args);
+
+// Sign in with Microsoft Entra ID. Roles come from the groups claim in the ID token, so no
+// downstream API, token cache or distributed cache is needed.
+builder.Services.AddMicrosoftIdentityWebAppAuthentication(builder.Configuration);
+
+// Group names are read from WolfeReiterIdentityClaims:GroupNames. They can also be passed here,
+// for example AddWolfeReiterAzureGroupsClaimsTransform(builder.Configuration, new[] { "Editors" }).
+builder.Services.AddWolfeReiterAzureGroupsClaimsTransform(builder.Configuration);
+
+builder.Services.AddControllersWithViews().AddMicrosoftIdentityUI();
+builder.Services.AddRazorPages();
+
+var app = builder.Build();
+
+if (!app.Environment.IsDevelopment())
 {
-    public class Program
-    {
-        public static void Main(string[] args)
-        {
-            CreateHostBuilder(args).Build().Run();
-        }
-
-        public static IHostBuilder CreateHostBuilder(string[] args) =>
-            Host.CreateDefaultBuilder(args)
-                .ConfigureWebHostDefaults(webBuilder =>
-                {
-                    webBuilder.UseStartup<Startup>();
-                });
-    }
+    app.UseExceptionHandler("/Home/Error");
+    app.UseHsts();
 }
+app.UseHttpsRedirection();
+app.UseStaticFiles();
+app.UseStatusCodePages();
+
+app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllerRoute(name: "default", pattern: "{controller=Home}/{action=Index}/{id?}");
+app.MapRazorPages();
+
+app.Run();

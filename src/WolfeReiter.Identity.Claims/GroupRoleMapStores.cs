@@ -100,7 +100,16 @@ namespace WolfeReiter.Identity.Claims
                     Directory.CreateDirectory(directory);
 
                 var temp = Path + ".tmp";
-                await using (var stream = File.Create(temp))
+                var fileOptions = new FileStreamOptions
+                {
+                    Mode = FileMode.Create,
+                    Access = FileAccess.Write,
+                };
+                if (!OperatingSystem.IsWindows())
+                    fileOptions.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+                // a leftover temp file keeps its old mode, so start fresh
+                File.Delete(temp);
+                await using (var stream = new FileStream(temp, fileOptions))
                 {
                     await JsonSerializer.SerializeAsync(
                         stream,

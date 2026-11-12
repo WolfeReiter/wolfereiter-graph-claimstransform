@@ -199,7 +199,7 @@ namespace WolfeReiter.Identity.Claims.Tests
         }
 
         [Fact]
-        public async Task StoredNameSurvivesGroupRename()
+        public async Task StoredNameSurvivesGroupRenameWhenNotVerified()
         {
             var graph = new FakeGraph();
             var admins = graph.Add("Admins");
@@ -207,8 +207,10 @@ namespace WolfeReiter.Identity.Claims.Tests
             await Make.Map(graph, store, null, "Admins").GetAsync();
 
             admins.DisplayName = "Former Admins";
-            var map = await Make.Map(graph, store, null, "Admins").GetAsync();
+            var map = await Make.Map(graph, store, null, new[] { "Admins" }, o => o.GroupRoleMapVerifyStored = false)
+                .GetAsync();
             Assert.Equal("Admins", map[Guid.Parse(admins.Id!)]);
+            Assert.Equal(0, graph.IdLookups);
         }
 
         [Fact]
@@ -218,7 +220,10 @@ namespace WolfeReiter.Identity.Claims.Tests
             graph.Add("Admins");
             var editors = graph.Add("Editors");
             var store = new MemoryGroupRoleMapStore();
-            await store.SaveAsync(new Dictionary<string, Guid> { ["Admins"] = Guid.NewGuid() }, default);
+            await store.SaveAsync(
+                new Dictionary<string, Guid> { ["Admins"] = Guid.Parse(graph.Directory[0].Id!) },
+                default
+            );
 
             var map = await Make.Map(graph, store, null, "Admins", "Editors").GetAsync();
 
@@ -357,6 +362,412 @@ namespace WolfeReiter.Identity.Claims.Tests
             await map.GetAsync();
             await map.GetAsync();
             Assert.Equal(1, created);
+        }
+
+        // ---- stored IDs are checked against Entra ID at startup
+
+        static async Task<MemoryGroupRoleMapStore> StoreWith(string name, Guid id)
+        {
+            var store = new MemoryGroupRoleMapStore();
+            await store.SaveAsync(new Dictionary<string, Guid> { [name] = id }, default);
+            return store;
+        }
+
+        [Fact]
+        public async Task StoredIdIsVerifiedByDefault()
+        {
+            var graph = new FakeGraph();
+            var admins = graph.Add("Admins");
+            var map = await Make.Map(graph, await StoreWith("Admins", Guid.Parse(admins.Id!)), null, "Admins")
+                .GetAsync();
+
+            Assert.Equal("Admins", map[Guid.Parse(admins.Id!)]);
+            Assert.Equal(1, graph.IdLookups);
+            Assert.Equal(0, graph.Lookups);
+        }
+
+        [Fact]
+        public async Task StoredIdMatchesNameIgnoringCase()
+        {
+            var graph = new FakeGraph();
+            var admins = graph.Add("ADMINS");
+            await Make.Map(graph, await StoreWith("Admins", Guid.Parse(admins.Id!)), null, "Admins").GetAsync();
+        }
+
+        [Fact]
+        public async Task StoredIdMissingFromEntraFails()
+        {
+            var id = Guid.NewGuid();
+            var store = await StoreWith("Admins", id);
+            var ex = await Assert.ThrowsAsync<GroupRoleMapException>(() =>
+                Make.Map(new FakeGraph(), store, null, "Admins").GetAsync()
+            );
+            Assert.Contains($"Stored group 'Admins' ({id}) does not exist", ex.Message);
+        }
+
+        [Fact]
+        public async Task StoredIdOfRenamedGroupFails()
+        {
+            var graph = new FakeGraph();
+            var admins = graph.Add("Admins");
+            admins.DisplayName = "Former Admins";
+            var stored = await StoreWith("Admins", Guid.Parse(admins.Id!));
+            var ex = await Assert.ThrowsAsync<GroupRoleMapException>(() =>
+                Make.Map(graph, stored, null, "Admins").GetAsync()
+            );
+            Assert.Contains("is named 'Former Admins'", ex.Message);
+        }
+
+        [Fact]
+        public async Task StoredIdPointingAtOtherGroupFails()
+        {
+            // a store row rewritten to an attacker's group with a different name
+            var graph = new FakeGraph();
+            graph.Add("Admins");
+            var mine = graph.Add("My Group");
+            var stored = await StoreWith("Admins", Guid.Parse(mine.Id!));
+            var ex = await Assert.ThrowsAsync<GroupRoleMapException>(() =>
+                Make.Map(graph, stored, null, "Admins").GetAsync()
+            );
+            Assert.Contains("is named 'My Group'", ex.Message);
+        }
+
+        [Theory]
+        [InlineData(false, null)]
+        [InlineData(true, "Unified")]
+        public async Task StoredIdOfNonSecurityGroupFails(bool securityEnabled, string? groupType)
+        {
+            var graph = new FakeGraph();
+            var group = graph.Add("Admins");
+            group.SecurityEnabled = securityEnabled;
+            if (groupType != null)
+                group.GroupTypes = new List<string> { groupType };
+            var stored = await StoreWith("Admins", Guid.Parse(group.Id!));
+            var ex = await Assert.ThrowsAsync<GroupRoleMapException>(() =>
+                Make.Map(graph, stored, null, "Admins").GetAsync()
+            );
+            Assert.Contains("is not a security group", ex.Message);
+        }
+
+        [Fact]
+        public async Task StoredIdsAreCheckedInOneCall()
+        {
+            var graph = new FakeGraph();
+            var store = new MemoryGroupRoleMapStore();
+            var names = Enumerable.Range(0, 20).Select(i => $"G{i}").ToArray();
+            await store.SaveAsync(
+                names.ToDictionary(x => x, x => Guid.Parse(graph.Add(x).Id!)),
+                default
+            );
+
+            var map = await Make.Map(graph, store, null, names).GetAsync();
+
+            Assert.Equal(20, map.Count);
+            Assert.Equal(new[] { 20 }, graph.IdBatchSizes);
+        }
+
+        [Fact]
+        public async Task JustDiscoveredNamesAreNotCheckedAgain()
+        {
+            var graph = new FakeGraph();
+            graph.Add("Admins");
+            await Make.Map(graph, null, null, "Admins").GetAsync();
+            Assert.Equal(0, graph.IdLookups);
+        }
+
+        [Fact]
+        public async Task NameStoredByAnotherInstanceMeanwhileIsChecked()
+        {
+            // our lookup found one group, but another instance stored a different ID first
+            var graph = new FakeGraph();
+            var ours = graph.Add("Admins");
+            var theirs = Guid.NewGuid();
+            var store = new RaceStore("Admins", theirs);
+
+            var ex = await Assert.ThrowsAsync<GroupRoleMapException>(() =>
+                Make.Map(graph, store, null, "Admins").GetAsync()
+            );
+            Assert.Contains($"({theirs}) does not exist", ex.Message);
+            Assert.Equal(1, graph.IdLookups);
+        }
+
+        /// <summary>Empty on first load, then shows a row another instance wrote.</summary>
+        class RaceStore : IGroupRoleMapStore
+        {
+            readonly string Name;
+            readonly Guid Id;
+            bool Saved;
+
+            public RaceStore(string name, Guid id)
+            {
+                Name = name;
+                Id = id;
+            }
+
+            public Task<IReadOnlyDictionary<string, Guid>> LoadAsync(System.Threading.CancellationToken cancellationToken) =>
+                Task.FromResult<IReadOnlyDictionary<string, Guid>>(
+                    Saved
+                        ? new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase) { [Name] = Id }
+                        : new Dictionary<string, Guid>()
+                );
+
+            public Task SaveAsync(IReadOnlyDictionary<string, Guid> entries, System.Threading.CancellationToken cancellationToken)
+            {
+                Saved = true;
+                return Task.CompletedTask;
+            }
+        }
+
+        // ---- role-assignable requirement
+
+        [Fact]
+        public async Task RoleAssignableIsNotRequiredByDefault()
+        {
+            var graph = new FakeGraph();
+            graph.Add("Admins", roleAssignable: false);
+            Assert.Single(await Make.Map(graph, null, null, "Admins").GetAsync());
+        }
+
+        [Fact]
+        public async Task RequiredRoleAssignableRejectsOrdinaryGroupAtLookup()
+        {
+            var graph = new FakeGraph();
+            var group = graph.Add("Admins", roleAssignable: false);
+            var store = new MemoryGroupRoleMapStore();
+
+            var ex = await Assert.ThrowsAsync<GroupRoleMapException>(() =>
+                Make.Map(graph, store, null, new[] { "Admins" }, o => o.GroupRoleMapRequireRoleAssignable = true)
+                    .GetAsync()
+            );
+            Assert.Contains($"'Admins' ({group.Id}) is not role-assignable", ex.Message);
+            Assert.Empty(await store.LoadAsync(default));
+        }
+
+        [Fact]
+        public async Task RequiredRoleAssignableAcceptsRoleAssignableGroup()
+        {
+            var graph = new FakeGraph();
+            var group = graph.Add("Admins", roleAssignable: true);
+            var map = await Make.Map(graph, null, null, new[] { "Admins" }, o => o.GroupRoleMapRequireRoleAssignable = true)
+                .GetAsync();
+            Assert.Equal("Admins", map[Guid.Parse(group.Id!)]);
+        }
+
+        [Fact]
+        public async Task RequiredRoleAssignableRejectsStoredOrdinaryGroup()
+        {
+            var graph = new FakeGraph();
+            var group = graph.Add("Admins", roleAssignable: false);
+            var stored = await StoreWith("Admins", Guid.Parse(group.Id!));
+            var ex = await Assert.ThrowsAsync<GroupRoleMapException>(() =>
+                Make.Map(
+                        graph,
+                        stored,
+                        null,
+                        new[] { "Admins" },
+                        o => o.GroupRoleMapRequireRoleAssignable = true
+                    )
+                    .GetAsync()
+            );
+            Assert.Contains("Stored group 'Admins'", ex.Message);
+            Assert.Contains("not role-assignable", ex.Message);
+        }
+
+        [Fact]
+        public async Task RoleAssignableDoesNotApplyToStaticRoles()
+        {
+            var id = Guid.NewGuid();
+            var map = await Make.Map(
+                    new FakeGraph(),
+                    null,
+                    new() { [id.ToString()] = "Admins" },
+                    Array.Empty<string>(),
+                    o => o.GroupRoleMapRequireRoleAssignable = true
+                )
+                .GetAsync();
+            Assert.Equal("Admins", map[id]);
+        }
+
+        // ---- logging
+
+        [Fact]
+        public async Task NewLookupIsLoggedAsWarningWithGroupDetails()
+        {
+            var graph = new FakeGraph();
+            var group = graph.Add("Admins", roleAssignable: true);
+            var logger = new ListLogger<GroupRoleMap>();
+
+            await Make.Map(graph, null, null, new[] { "Admins" }, null, logger).GetAsync();
+
+            var entry = Assert.Single(logger.Entries);
+            Assert.Equal(Microsoft.Extensions.Logging.LogLevel.Warning, entry.Level);
+            Assert.Contains(group.Id!, entry.Message);
+            Assert.Contains("role-assignable True", entry.Message);
+            Assert.Contains("created", entry.Message);
+        }
+
+        [Fact]
+        public async Task StoredMappingIsLoggedAsInformation()
+        {
+            var graph = new FakeGraph();
+            var group = graph.Add("Admins");
+            var logger = new ListLogger<GroupRoleMap>();
+
+            await Make.Map(graph, await StoreWith("Admins", Guid.Parse(group.Id!)), null, new[] { "Admins" }, null, logger)
+                .GetAsync();
+
+            var entry = Assert.Single(logger.Entries);
+            Assert.Equal(Microsoft.Extensions.Logging.LogLevel.Information, entry.Level);
+            Assert.Contains("checked against Entra ID", entry.Message);
+        }
+
+        // ---- dynamic membership groups are ignored with a warning
+
+        static Group Dynamic(FakeGraph graph, string name)
+        {
+            var group = graph.Add(name);
+            group.GroupTypes = new List<string> { "DynamicMembership" };
+            return group;
+        }
+
+        static bool Warned(ListLogger<GroupRoleMap> logger, string id) =>
+            logger.Entries.Any(x =>
+                x.Level == Microsoft.Extensions.Logging.LogLevel.Warning
+                && x.Message.Contains(id)
+                && x.Message.Contains("dynamic membership")
+            );
+
+        [Fact]
+        public async Task OnlyDynamicMatchIsNoMatch()
+        {
+            var graph = new FakeGraph();
+            var group = Dynamic(graph, "Admins");
+            var logger = new ListLogger<GroupRoleMap>();
+            var store = new MemoryGroupRoleMapStore();
+
+            var ex = await Assert.ThrowsAsync<GroupRoleMapException>(() =>
+                Make.Map(graph, store, null, new[] { "Admins" }, null, logger).GetAsync()
+            );
+            Assert.Contains("No security group with assigned membership is named 'Admins'", ex.Message);
+            Assert.Contains("1 with dynamic membership were ignored", ex.Message);
+            Assert.True(Warned(logger, group.Id!));
+            Assert.Empty(await store.LoadAsync(default));
+        }
+
+        [Fact]
+        public async Task DynamicGroupWithSameNameIsNotADuplicate()
+        {
+            var graph = new FakeGraph();
+            var assigned = graph.Add("Admins");
+            var dynamic = Dynamic(graph, "Admins");
+            var logger = new ListLogger<GroupRoleMap>();
+
+            var map = await Make.Map(graph, null, null, new[] { "Admins" }, null, logger).GetAsync();
+
+            Assert.Equal("Admins", Assert.Single(map).Value);
+            Assert.Equal(Guid.Parse(assigned.Id!), map.Keys.Single());
+            Assert.True(Warned(logger, dynamic.Id!));
+        }
+
+        [Fact]
+        public async Task TwoAssignedGroupsAreStillDuplicatesBesideADynamicOne()
+        {
+            var graph = new FakeGraph();
+            graph.Add("Admins");
+            graph.Add("Admins");
+            Dynamic(graph, "Admins");
+
+            var ex = await Assert.ThrowsAsync<GroupRoleMapException>(() =>
+                Make.Map(graph, null, null, "Admins").GetAsync()
+            );
+            Assert.Contains("2 security groups are named 'Admins'", ex.Message);
+        }
+
+        [Fact]
+        public async Task DynamicGroupTypeMatchesInAnyCase()
+        {
+            var graph = new FakeGraph();
+            graph.Add("Admins").GroupTypes = new List<string> { "dynamicmembership" };
+            var ex = await Assert.ThrowsAsync<GroupRoleMapException>(() =>
+                Make.Map(graph, null, null, "Admins").GetAsync()
+            );
+            Assert.Contains("dynamic membership were ignored", ex.Message);
+        }
+
+        [Fact]
+        public async Task StoredDynamicGroupIsLeftOutWithWarningAndStartupContinues()
+        {
+            var graph = new FakeGraph();
+            var admins = Dynamic(graph, "Admins");
+            var editors = graph.Add("Editors");
+            var store = new MemoryGroupRoleMapStore();
+            await store.SaveAsync(
+                new Dictionary<string, Guid>
+                {
+                    ["Admins"] = Guid.Parse(admins.Id!),
+                    ["Editors"] = Guid.Parse(editors.Id!),
+                },
+                default
+            );
+            var logger = new ListLogger<GroupRoleMap>();
+
+            var map = await Make.Map(graph, store, null, new[] { "Admins", "Editors" }, null, logger).GetAsync();
+
+            Assert.Equal("Editors", Assert.Single(map).Value);
+            Assert.True(Warned(logger, admins.Id!));
+            // the stored row is kept, so the name is not looked up again
+            Assert.Equal(Guid.Parse(admins.Id!), (await store.LoadAsync(default))["Admins"]);
+            Assert.Equal(0, graph.Lookups);
+        }
+
+        [Fact]
+        public async Task GroupChangedToDynamicAfterStoringStopsGrantingTheRole()
+        {
+            var graph = new FakeGraph();
+            var group = graph.Add("Admins");
+            var store = new MemoryGroupRoleMapStore();
+            Assert.Single(await Make.Map(graph, store, null, "Admins").GetAsync());
+
+            group.GroupTypes = new List<string> { "DynamicMembership" };
+            Assert.Empty(await Make.Map(graph, store, null, "Admins").GetAsync());
+        }
+
+        [Fact]
+        public async Task TransformGrantsNoRoleForIgnoredDynamicGroup()
+        {
+            var graph = new FakeGraph();
+            var group = Dynamic(graph, "Admins");
+            var stored = await StoreWith("Admins", Guid.Parse(group.Id!));
+            var transform = new AzureGroupsClaimsTransform(
+                Make.Map(graph, stored, null, "Admins"),
+                Microsoft.Extensions.Options.Options.Create(new GraphUtilityServiceOptions()),
+                Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance
+            );
+
+            var result = await transform.TransformAsync(
+                Make.Principal(new System.Security.Claims.Claim("groups", group.Id!))
+            );
+            Assert.False(result.IsInRole("Admins"));
+        }
+
+        [Fact]
+        public async Task StoredDynamicGroupIsNotSeenWhenVerificationIsOff()
+        {
+            var graph = new FakeGraph();
+            var group = Dynamic(graph, "Admins");
+            var stored = await StoreWith("Admins", Guid.Parse(group.Id!));
+
+            var map = await Make.Map(graph, stored, null, new[] { "Admins" }, o => o.GroupRoleMapVerifyStored = false)
+                .GetAsync();
+            Assert.Single(map);
+        }
+
+        [Fact]
+        public async Task DynamicCheckDoesNotApplyToStaticRoles()
+        {
+            var id = Guid.NewGuid();
+            var map = await Make.Map(new FakeGraph(), roles: new() { [id.ToString()] = "Admins" }).GetAsync();
+            Assert.Equal("Admins", map[id]);
         }
     }
 }

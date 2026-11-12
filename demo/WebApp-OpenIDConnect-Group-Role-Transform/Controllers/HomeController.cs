@@ -1,28 +1,37 @@
-﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using WebApp_OpenIDConnect_Group_Role_Transform.Models;
+using WolfeReiter.Identity.Claims;
 
 namespace WebApp_OpenIDConnect_Group_Role_Transform.Controllers
 {
     [Authorize]
     public class HomeController : Controller
     {
-        private readonly ILogger<HomeController> _logger;
+        private readonly GroupRoleMap RoleMap;
 
-        public HomeController(ILogger<HomeController> logger)
+        public HomeController(GroupRoleMap roleMap)
         {
-            _logger = logger;
+            RoleMap = roleMap;
         }
 
-        public IActionResult Index()
+        /// <summary>Every mapped role, whether the user holds it, and the user's claims.</summary>
+        public async Task<IActionResult> Index()
         {
-            return View();
+            var map = await RoleMap.GetAsync();
+            var roles = map.GroupBy(x => x.Value)
+                .OrderBy(x => x.Key)
+                .Select(x => new RoleViewModel
+                {
+                    Role = x.Key,
+                    ObjectIds = x.Select(y => y.Key.ToString()).OrderBy(y => y).ToList(),
+                    InRole = User.IsInRole(x.Key),
+                })
+                .ToList();
+            return View(roles);
         }
 
         [AllowAnonymous]

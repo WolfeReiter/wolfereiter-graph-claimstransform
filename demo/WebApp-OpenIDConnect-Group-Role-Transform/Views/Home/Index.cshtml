@@ -1,6 +1,25 @@
-﻿@{
+@model IReadOnlyList<RoleViewModel>
+@{
     ViewData["Title"] = "Home Page";
 }
+
+<h4>Mapped roles</h4>
+
+<table class="table table-striped table-bordered table-condensed table-hover">
+    <tr>
+        <th>Role</th>
+        <th>Group Object IDs</th>
+        <th>Current user in role</th>
+    </tr>
+    @foreach (var role in Model)
+    {
+        <tr>
+            <td>@role.Role</td>
+            <td>@string.Join(", ", role.ObjectIds)</td>
+            <td>@(role.InRole ? "Yes" : "No")</td>
+        </tr>
+    }
+</table>
 
 <h4>Claims for the current user</h4>
 
@@ -8,14 +27,14 @@
     <tr>
         <th>ClaimType</th>
         <th>Value</th>
+        <th>Issuer</th>
     </tr>
-
     @foreach (var claim in User.Claims)
     {
-    <tr>
-        <td>@claim.Type</td>
-        <td>@claim.Value</td>
-    </tr>
+        <tr>
+            <td>@claim.Type</td>
+            <td>@claim.Value</td>
+            <td>@claim.Issuer</td>
+        </tr>
     }
-
 </table>

@@ -21,5 +21,13 @@ namespace WolfeReiter.Identity.Claims
             throw new NotSupportedException(
                 $"{GetType().Name} does not implement SecurityGroupsByDisplayNameAsync, which GroupNames discovery requires."
             );
+
+        /// <summary>
+        /// The groups with these Object IDs, of any kind. IDs with no group are left out.
+        /// </summary>
+        Task<IEnumerable<Group>> GroupsByIdAsync(IEnumerable<Guid> ids) =>
+            throw new NotSupportedException(
+                $"{GetType().Name} does not implement GroupsByIdAsync, which GroupRoleMapVerifyStored requires."
+            );
     }
 }

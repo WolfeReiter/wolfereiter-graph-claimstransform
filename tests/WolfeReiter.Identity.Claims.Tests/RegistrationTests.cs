@@ -47,6 +47,8 @@ namespace WolfeReiter.Identity.Claims.Tests
                     ["WolfeReiterIdentityClaims:GroupRoleMapTable"] = "app.map",
                     ["WolfeReiterIdentityClaims:GroupRoleMapCreateTable"] = "false",
                     ["WolfeReiterIdentityClaims:GroupRoleMapJsonPath"] = "map.json",
+                    ["WolfeReiterIdentityClaims:GroupRoleMapRequireRoleAssignable"] = "true",
+                    ["WolfeReiterIdentityClaims:GroupRoleMapVerifyStored"] = "false",
                 }
             );
             using var provider = Services(config).BuildServiceProvider();
@@ -62,6 +64,8 @@ namespace WolfeReiter.Identity.Claims.Tests
             Assert.Equal("app.map", options.GroupRoleMapTable);
             Assert.False(options.GroupRoleMapCreateTable);
             Assert.Equal("map.json", options.GroupRoleMapJsonPath);
+            Assert.True(options.GroupRoleMapRequireRoleAssignable);
+            Assert.False(options.GroupRoleMapVerifyStored);
         }
 
         [Fact]
@@ -75,6 +79,8 @@ namespace WolfeReiter.Identity.Claims.Tests
             Assert.Null(options.GroupRoleMapStore);
             Assert.Equal("GroupRoleMap", options.GroupRoleMapTable);
             Assert.True(options.GroupRoleMapCreateTable);
+            Assert.False(options.GroupRoleMapRequireRoleAssignable);
+            Assert.True(options.GroupRoleMapVerifyStored);
             Assert.IsType<MemoryGroupRoleMapStore>(provider.GetRequiredService<IGroupRoleMapStore>());
         }
 
@@ -453,6 +459,57 @@ namespace WolfeReiter.Identity.Claims.Tests
             using var host = builder.Build();
 
             await Assert.ThrowsAsync<GroupRoleMapException>(() => host.StartAsync());
+        }
+
+        class Env : IHostEnvironment
+        {
+            public string EnvironmentName { get; set; } = "Production";
+            public string ApplicationName { get; set; } = "test";
+            public string ContentRootPath { get; set; } = ".";
+            public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
+        }
+
+        [Theory]
+        [InlineData("Production", true)]
+        [InlineData("Development", false)]
+        public async Task MemoryStoreInProductionIsWarned(string environment, bool warned)
+        {
+            var graph = new FakeGraph();
+            graph.Add("Admins");
+            var logger = new ListLogger<GroupRoleMapStartup>();
+
+            await new GroupRoleMapStartup(Make.Map(graph, null, null, "Admins"), logger, new Env { EnvironmentName = environment })
+                .StartAsync(default);
+
+            Assert.Equal(
+                warned,
+                logger.Entries.Any(x => x.Level == Microsoft.Extensions.Logging.LogLevel.Warning && x.Message.Contains("in-memory store"))
+            );
+        }
+
+        [Fact]
+        public async Task PersistentStoreOrStaticRolesInProductionAreNotWarned()
+        {
+            var graph = new FakeGraph();
+            var group = graph.Add("Admins");
+            var logger = new ListLogger<GroupRoleMapStartup>();
+            var json = Make.TempPath(".json");
+            try
+            {
+                await new GroupRoleMapStartup(Make.Map(graph, new JsonFileGroupRoleMapStore(json), null, "Admins"), logger, new Env())
+                    .StartAsync(default);
+                await new GroupRoleMapStartup(
+                        Make.Map(graph, roles: new() { [group.Id!] = "Admins" }),
+                        logger,
+                        new Env()
+                    )
+                    .StartAsync(default);
+            }
+            finally
+            {
+                System.IO.File.Delete(json);
+            }
+            Assert.Empty(logger.Entries);
         }
 
         [Fact]
